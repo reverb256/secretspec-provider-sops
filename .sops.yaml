@@ -1,9 +1,0 @@
-# SOPS config — age recipients for the secretspec repo.
-# Mirrors /etc/nixos/.sops.yaml recipient list so the same YubiKeys
-# (and cluster age key) can decrypt secrets in this repo.
-creation_rules:
-  - path_regex: secrets/.*\.yaml$
-    age: >-
-      age1p98yp8w64rdugp03332gxnz5q2vcnucn69cs5qm6s2l2u7epqfcqmu2pqe,
-      age1yubikey1qtrfqkheehc6dlyux9stwq67dq3kcledlwzzrckx0wk639mh0wqh54auh7v,
-      age1yubikey1qvh5yeguawe89kr9muzn6xvfwjkcja7rf0j6afxgyula6p9vql4kkjh52h2
