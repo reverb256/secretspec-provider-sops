@@ -56,7 +56,11 @@ secretspec check --profile development → release-build binary smoke`).
 `provider-rust/src/secretspec.rs` ships `SopsFileProvider` as Phase 3
 scaffold awaiting cachix/secretspec#98 alignment. 36 tests pass
 (16 lib + 8 integration + 6 cli_smoke + 6 doctest). Migration phases:
-Phase 1 ✅ closed, Phase 2 🟡 in progress (CLI shim + 4-format quartet
-shipped; awaits upstream PR #58 OR Provider scaffold alignment), Phase
-3 🟡 decisioned (matrix complete, decisions ready), Phase 4 🔒
-blocked upstream (issue #65 + #41).
+Phase 1 ✅ closed, Phase 2 ✅ closed (CLI shim + 4-format quartet;
+crate `secretspec-provider-sops` ships, repo at github.com/reverb256/
+secretspec-provider-sops; await upstream PR #58 OR
+SopsFileProvider↔#98 alignment for closure of PHASE-2-UPSTREAMABLE),
+Phase 3 🟡 decisioned (matrix complete, decisions ready),
+Phase 4 ✅ closed (workaround patterns ship in
+`scripts/phase4-deploy-example.sh`; cachix/secretspec#65 + #41
+remain OPEN as additive improvements, not blockers).

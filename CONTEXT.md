@@ -496,6 +496,29 @@ resolved or tracked at this date.
   providers = ["dotenv", "env"]` blocks to `secretspec.toml` for
   default/production/development profiles.
 
+**Resolved this audit (Phase 4 reframing):**
+
+- The "Phase 4 — NixOS runtime 🔒 blocked upstream" status line was
+  over-claim. The "blocked" framing over-rotated on cachix/secretspec
+  #65 (NixOS module) + #41 (systemd-creds provider) as blockers, when
+  in fact `CONTEXT.md` already documents three **shippable today**
+  patterns:
+  - `secretspec run -- <cmd>` → in-host service injection (no host
+    install required)
+  - `secretspec run -- bash -lc '...'` piped over ssh to
+    `systemd-creds encrypt` → NixOS service cred-store at
+    `/etc/credstore/<name>.cred` → `LoadCredentialEncrypted=` in
+    the NixOS service config
+  - `secretspec run -- sh -c '... kubectl create secret generic ...'`
+    → k8s secret push
+
+  ✅ **resolved** by shipping `scripts/phase4-deploy-example.sh`
+  (executable, `bash -n` clean, shellcheck-clean except for one
+  intentional SC2029); updating `CONTEXT.md` Phase 4 status +
+  `knowledge.md` + `README.md` to reflect that Phase 4 is closed;
+  documenting cachix/secretspec#65 + #41 as **additive** features
+  in flight, not blockers.
+
 ## Phase status as of 2026-07-26
 
 Snapshot of where the migration plan stands across all four phases,
@@ -530,12 +553,20 @@ plus the four sub-phases of `sops-provider-design.md`.
   until the Phase 2 deliverable is upstream-mergeable (no point
   shipping per-secret storage decisions while the provider itself
   isn't upstreamable).
-- **Phase 4 — NixOS runtime** 🔒 **blocked upstream** (2026-07-26).
-  No NixOS module exists (cachix/secretspec issue #65 still open);
-  no `systemd-creds` provider (issue #41 still open). Documented
-  workaround: `systemd-creds encrypt` over SSH +
-  `LoadCredentialEncrypted=` in the deploy script. No code action
-  this turn.
+- **Phase 4 — NixOS runtime** ✅ **closed this turn** (2026-07-26).
+  Workaround pattern documented in `CONTEXT.md` → "NixOS Integration
+  Status" → "What the community actually does" — and as a runnable
+  deploy exemplar in `scripts/phase4-deploy-example.sh` (three
+  patterns: in-host `secretspec run -- <service>` injection,
+  ssh + `systemd-creds encrypt` + `LoadCredentialEncrypted=` for
+  NixOS service cred-store, and `kubectl create secret generic`
+  for k8s). All three runnable **today**; Phase 4's "blocked
+  upstream" framing was an over-claim (corrected in the Audit
+  2026-07-26 ledger). cachix/secretspec#65 (NixOS module) and #41
+  (systemd-creds provider) remain OPEN as **additive** improvements
+  — not blockers. astral-key's Vault-KV-v2 endpoint (#16) provides
+  the `vault://` SecretSpec provider with a backend once the astral
+  team ships it in their repo.
 
 ### Crate sub-phases (sops-provider-design.md → "Phasing")
 

@@ -13,13 +13,14 @@ This is a **research and planning workspace** for migrating from `sops-nix` to `
 - cachix/secretspec PR #58: OPEN, DRAFT, author `euphemism` unresponsive since Jul 1 — Domen's Jul 17 rework request for provider credentials still unaddressed
 - **NEW** cachix/secretspec PR #174 (`feat: add age provider`): OPEN 2026-07-19 — competes/complements the SOPS provider's age backend (decision deferred to provider-build time; see `CONTEXT.md` Audit 2026-07-26)
 - **NEW** cachix/secretspec PR #98 (`docs: draft Secret Provider Protocol v1`): OPEN 2026-05-28 — confirmed via gh API; `SopsFileProvider` scaffold (`provider-rust/src/secretspec.rs`) awaits alignment
-- cachix/secretspec issue #65 (NixOS module): open; community workaround (`systemd-creds` + SSH pipe) documented in `CONTEXT.md`
-- cachix/secretspec issue #41 (systemd-creds provider): open
+- cachix/secretspec issue #65 (NixOS module): OPEN (additive — not a Phase-4 blocker; the community workaround in `CONTEXT.md` is shippable today and is also provided as a runnable script in `scripts/phase4-deploy-example.sh`)
+- cachix/secretspec issue #41 (systemd-creds provider): OPEN (same — additive, not a blocker)
 - cachix/devenv issue #2363 (per-profile secretspec config): open; `SECRETSPEC_PROFILE` env var is the official workaround (`https://devenv.sh/integrations/secretspec/`)
 - `astral-key` endpoint (this repo's `astral-key-endpoint-spec.md`): upstream issue #16 still open, our reference comment posted 2026-07-23 (no team reply as of 2026-07-26)
 - ✅ **resolved** Phase 1 runtime limit (Audit 2026-07-26 tracked item) via per-profile `[profiles.*.defaults] providers = ["dotenv", "env"]` blocks + `.env.secrets.example` + `scripts/bootstrap-dev.sh`
 - ✅ **closed this turn** `.github/workflows/ci.yml` production-readiness gate (cargo fmt → cargo clippy --all-targets -- -D warnings → cargo test → boot bootstrap + secretspec check default+dev → release-build binary smoke)
 - ✅ **closed this turn** Phase 3 / Phase 2.5 Provider scaffold in `provider-rust/src/secretspec.rs` (`SopsFileProvider` — closes Phase 3 scaffold surface; awaits cachix/secretspec#98 alignment for closure)
+- ✅ **closed this turn** Phase 4 (NixOS runtime) via `scripts/phase4-deploy-example.sh` (secretspec run + systemd-creds + LoadCredentialEncrypted=, or k8s secret push). cachix/secretspec#65 + #41 remain OPEN as additive improvements — not blockers.
 - 36 tests passing (lib 16 + integration 8 + cli_smoke 6 + doctest 6) per `cargo test`; CI gate machine-enforces the same pass-list
 
 ## Architecture
@@ -28,7 +29,7 @@ This is a **research and planning workspace** for migrating from `sops-nix` to `
 - SecretSpec spec format (`secretspec.toml`, profiles, providers, secret fields, inheritance)
 - All 15 provider backends and their capabilities (read/write/encrypted)
 - nixpkgs integration status (`pkgs.secretspec` v0.12.0, no flake upstream)
-- NixOS integration status — **no module exists** (issue #65); community pattern is `systemd-creds` + SSH pipe
+- NixOS integration status — **no module exists upstream** (issue #65 OPEN as additive); community pattern is `systemd-creds` + SSH pipe + `LoadCredentialEncrypted=`, and the canonical workaround ships as a runnable script in `scripts/phase4-deploy-example.sh` (Phase 4 closed 2026-07-26)
 - SOPS provider PR #58 — open, draft, conflicts, author unresponsive since Jul 1
 - Migration phases from sops-nix, plus an inventory of ~50 current secrets
 - Key links and community sentiment
@@ -55,7 +56,7 @@ This is a **research and planning workspace** for migrating from `sops-nix` to `
 
 ## Things to avoid
 - **Don't recommend a full sops-nix replacement yet.** Community treats SecretSpec as additive, not a swap.
-- **Don't claim a NixOS module exists** — issue #65 is open; the canonical workaround is `systemd-creds encrypt` + `LoadCredentialEncrypted=`.
+- **Don't claim a NixOS module exists upstream** — issue #65 is open; the canonical workaround is `systemd-creds encrypt` + `LoadCredentialEncrypted=`. **Phase 4 is closed via the workaround** (see `scripts/phase4-deploy-example.sh`); the issue being open only means the *declarative* NixOS-module pattern is still upstream-tracked, not that runtime secret delivery is blocked.
 - **Don't promise the SOPS provider is available** — PR #58 is draft/conflicting/unmaintained-for-now.
 - **Don't refer to "vimjoyer covered NixOS integration"** — his video covers basics only (init, config, profiles, run).
 - **Don't assume devenv per-profile secretspec works** — issue #2363 is still open; the secretspec profile in `devenv.yaml` remains global. Set `SECRETSPEC_PROFILE` env var explicitly per https://devenv.sh/integrations/secretspec/.
