@@ -262,7 +262,7 @@ mod tests {
     fn get_response_serializes_string_for_hit() {
         let resp = Response::Get(GetResponse {
             ok: true,
-            value: Some("postgres://example".into()),
+            value: Some("postgres://example".to_string()),
         });
         let s = serde_json::to_string(&resp).unwrap();
         assert!(s.contains(""value":"postgres://example""), "got: {s}");
