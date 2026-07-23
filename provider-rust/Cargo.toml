@@ -19,8 +19,6 @@ serde_json = "1"
 # here for Phase 1 because the surface (YAML read/write of decrypted SOPS
 # output) is small and stable. Phase 2 should migrate to `serde_yml`.
 serde_yaml = "0.9"
-# CLI parsing
-clap = { version = "~4.5.0", features = ["derive"] }
 # Error handling
 thiserror = "1"
 anyhow = "1"
