@@ -1,0 +1,81 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  production-readiness-gate:
+    name: format + lint + test + secretspec full-resolution
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (rustup)
+        uses: dtolnay/rust-toolchain@stable
+
+      # The integration tests + CLI smoke tests require sops / age /
+      # age-keygen / nix on PATH. Nix is the primary toolchain per the
+      # homelab's NixOS profile; this step installs only the binaries
+      # we need via `nix profile install`.
+      - name: Install sops / age / age-keygen (via Nix)
+        uses: cachix/install-nix-action@v27
+
+      - name: Install sops / age / age-keygen binaries
+        run: |
+          nix profile install nixpkgs#sops nixpkgs#age nixpkgs#age-keygen
+          which sops age age-keygen
+
+      # `cargo fmt --check` and `cargo clippy --all-targets` were
+      # flagged as missing in local pre-turn validation; auto-install
+      # them here so CI enforces them, while the local install gap
+      # remains a known tracked item in CONTEXT.md Audit 2026-07-26.
+      - name: Install rustfmt + clippy components
+        run: |
+          rustup component add rustfmt clippy
+
+      - name: cargo fmt --check
+        working-directory: provider-rust
+        run: cargo fmt --check
+
+      - name: cargo clippy strict (lint-as-errors)
+        working-directory: provider-rust
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test (lib + integration + cli_smoke + doctests)
+        working-directory: provider-rust
+        run: cargo test
+
+      - name: cargo build --release
+        working-directory: provider-rust
+        run: cargo build --release
+
+      - name: secretspec version pin (v0.16 direct release)
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -sSL \
+            "https://github.com/cachix/secretspec/releases/download/v0.16.0/secretspec-x86_64-unknown-linux-gnu.tar.xz" \
+            | tar -xJ -C "$HOME/.local/bin/"
+          chmod +x "$HOME/.local/bin/secretspec"
+          "$HOME/.local/bin/secretspec" --version
+
+      - name: bootstrap-dev.sh (populate .env.secrets from template)
+        run: ./scripts/bootstrap-dev.sh --force
+
+      - name: secretspec check --profile default
+        run: |
+          "$HOME/.local/bin/secretspec" check --profile default -f ./secretspec.toml
+
+      - name: secretspec check --profile development
+        run: |
+          "$HOME/.local/bin/secretspec" check --profile development
+
+      - name: provider-rust binary smoke (cargo run --bin ... -- doctor)
+        working-directory: provider-rust
+        run: |
+          "$PWD/target/release/secretspec-provider-sops" doctor

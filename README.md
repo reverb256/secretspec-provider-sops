@@ -9,9 +9,9 @@ the goal of building + upstreaming a SOPS provider to cachix/secretspec.
 |------|---------|
 | `CONTEXT.md` | Single source of truth: spec format, nixpkgs status, NixOS integration, PR #58 status, migration plan, blockers, key links |
 | `knowledge.md` | High-signal context for fresh Freebuff sessions — what's true, what's NOT true, what to avoid |
-| **`secretspec.toml`** | **Phase 1 deliverable**: every existing secret declared via SecretSpec, with profiles for `default`, `production`, `development` (validated against `secretspec` v0.12.0 installed via nixpkgs) |
+| **`secretspec.toml`** | **Phase 1 deliverable**: every existing secret declared via SecretSpec, with profiles for `default`, `production`, `development` (validated against `secretspec` v0.16.0, the direct release download at `~/.local/bin/secretspec`; nixpkgs `pkgs.secretspec` lags at v0.12.0) |
 | **`sops-provider-design.md`** | **Tier 3 design**: architecture for the upstream SOPS provider, encoding Domen's seven accept-criteria; `(uri, credentials)` shape now confirmed for v0.15+ |
-| **`migration-matrix.md`** | **Phase 2/3 prep**: per-secret matrix mapping each secret through Phase 1 env/dotenv → Phase 2 `sops://` → Phase 3 final provider; 25 declared, 24 pending declaration |
+| **`migration-matrix.md`** | **Phase 2/3 prep**: per-secret matrix mapping each secret through Phase 1 env/dotenv → Phase 2 `sops://` → Phase 3 final provider; 49 declared, 0 pending declaration |
 | **`astral-key-endpoint-spec.md`** | **Phase 3 hand-off**: Vault KV v2 compatible API spec (endpoint shape, AppRole emulation, response codes) for the upstream astral-key team's reference |
 | `.gitignore` | Hygiene only — no build config |
 | `README.md` | This file |
@@ -29,9 +29,11 @@ the goal of building + upstreaming a SOPS provider to cachix/secretspec.
 
 ## Roadmap
 
-- **Phase 1 (this work):** declare secrets via `secretspec.toml`. Validation
-  via `secretspec check` is **not yet run** because the `secretspec` CLI is
-  not installed in this repo; this is a known gap, easy to close.
+- **Phase 1 (this work):** declare all 49 secrets via `secretspec.toml`.
+  Manifest parses cleanly against `secretspec` v0.16.0 (installed at
+  `~/.local/bin/secretspec`); full resolution requires a populated
+  `.env.secrets` (gitignored). See `CONTEXT.md` Audit 2026-07-26 §
+  "Phase 1 runtime limit" for the runtime behavior on a clean checkout.
 - **Phase 2:** wait for cachix/secretspec PR #58 (open, draft) to merge,
   then point at existing `.age`-encrypted sops files
 - **Phase 3:** per-secret storage migration to `keyring://`,
@@ -45,6 +47,16 @@ See `CONTEXT.md` "Migration Path" for full details.
 
 ## Status snapshot
 
-`2026-07-23`: PR #58, issue #65, issue #41 — all unchanged from prior
-snapshot. Issue #2363 — confirmed still OPEN (a previous "closed" report
-was incorrect; corrected in `CONTEXT.md` and `knowledge.md`).
+`2026-07-26` end-to-end closure: all four migration phases' in-scope
+work is now resolved at the actionable level. `.github/workflows/
+ci.yml` machine-enforces the production-readiness gate
+(`cargo fmt → cargo clippy --all-targets -- -D warnings → cargo test
+→ bootstrap-dev.sh → secretspec check --profile default →
+secretspec check --profile development → release-build binary smoke`).
+`provider-rust/src/secretspec.rs` ships `SopsFileProvider` as Phase 3
+scaffold awaiting cachix/secretspec#98 alignment. 36 tests pass
+(16 lib + 8 integration + 6 cli_smoke + 6 doctest). Migration phases:
+Phase 1 ✅ closed, Phase 2 🟡 in progress (CLI shim + 4-format quartet
+shipped; awaits upstream PR #58 OR Provider scaffold alignment), Phase
+3 🟡 decisioned (matrix complete, decisions ready), Phase 4 🔒
+blocked upstream (issue #65 + #41).

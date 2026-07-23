@@ -1,0 +1,43 @@
+[package]
+name = "secretspec-provider-sops"
+version = "0.1.0"
+edition = "2021"
+description = "SOPS provider backend for SecretSpec — CLI shim wrapping sops --decrypt with the yaml, json, dotenv, and binary format quartet, plus a SopsFileProvider adapter for SecretSpec's Provider trait surface."
+license = "Apache-2.0"
+repository = "https://github.com/reverb256/secretspec-provider-sops"
+keywords = ["secretspec", "sops", "age", "encryption", "secret-management"]
+categories = ["command-line-utilities", "config", "cryptography"]
+publish = true
+
+[dependencies]
+# Async runtime — needed for `tokio::process::Command` + `#[tokio::main]`
+tokio = { version = "1.37", features = ["rt-multi-thread", "process", "macros"] }
+# Serialization for YAML / JSON parsing of decrypted SOPS output
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# serde_yaml 0.9 is deprecated upstream in favor of `serde_yml`; we keep it
+# here for Phase 1 because the surface (YAML read/write of decrypted SOPS
+# output) is small and stable. Phase 2 should migrate to `serde_yml`.
+serde_yaml = "0.9"
+# CLI parsing
+clap = { version = "4.5", features = ["derive"] }
+# Error handling
+thiserror = "1"
+anyhow = "1"
+# Audit logging — the framework hooks here in Phase 3, for now it's free
+tracing = "0.1"
+
+[[bin]]
+name = "secretspec-provider-sops"
+path = "src/main.rs"
+
+[lib]
+name = "secretspec_provider_sops"
+path = "src/lib.rs"
+
+[dev-dependencies]
+# Integration tests spin up a tempdir, generate an `age` keypair, encrypt a
+# fixture with `sops`, then call our provider. Requires the system binaries
+# `sops`, `age`, and `age-keygen` on PATH.
+tempfile = "3"
+tokio = { version = "1.37", features = ["rt-multi-thread", "process", "macros", "test-util"] }

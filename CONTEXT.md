@@ -1,16 +1,18 @@
 # SecretSpec — Complete Context for Migration & Integration
 
-> **Snapshot date:** 2026-07-23. Drift-checked PR #58, issue #65, issue #41 (all unchanged); **issue #2363 re-verified as still OPEN** (a prior "closed" claim was incorrect — corrected below and in `knowledge.md`). The `SECRETSPEC_PROFILE` env var workaround is the officially documented approach at https://devenv.sh/integrations/secretspec/.
+> **Snapshot date:** 2026-07-26. Drift-checked PR #58, issue #65, issue #41 (all unchanged as of 2026-07-23); **issue #2363 re-verified as still OPEN** (a prior "closed" claim was incorrect — corrected below and in `knowledge.md`). The `SECRETSPEC_PROFILE` env var workaround is the officially documented approach at https://devenv.sh/integrations/secretspec/.
+>
+> **Audit 2026-07-26** — surfaced-and-tracked inventory at the bottom of this file: Type "Audit 2026-07-26" appears near the end; new upstream tracks are PR #174 (age provider) and PR #98 (Secret Provider Protocol v1); Phase 1 runtime limit (`.env.secrets`-required for full check) is documented; one Phase 1 production-profile misconfiguration (referencing undeclared providers) has been fixed in `secretspec.toml`.
 
 ## Overview
 
-SecretSpec (cachix/secretspec) is a declarative secret management tool that separates **what** secrets an app needs (`secretspec.toml`) from **where** they're stored (15+ provider backends; the upstream list grew from 15 to 17 across 0.15–0.16). It lives in nixpkgs as `secretspec-0.12.0` (latest nixpkgs pin; upstream stable is `v0.16.0`, released 2026-07-17), maintained by Domen Kozar (Cachix founder) and Sander.
+SecretSpec (cachix/secretspec) is a declarative secret management tool that separates **what** secrets an app needs (`secretspec.toml`) from **where** they're stored (15+ provider backends; the upstream list grew from 15 to 17 across 0.15–0.16). Installed locally as `~/.local/bin/secretspec` (direct release download from `github.com/cachix/secretspec/releases/download/v0.16.0`; **v0.16.0 stable**, published 2026-07-18). The nixpkgs pin remains behind upstream at `v0.12.0`, maintained by Domen Kozar (Cachix founder) and Sander.
 
 **Philosophy:** Commit the declaration, never the values. Profiles vary what's required per environment. Providers resolve values from keyring, 1Password, Vault, env, dotenv, etc. Eight SDKs (Rust, Python, Go, Ruby, Node, Haskell, PHP, C#) use the same resolver.
 
 **Homepage:** https://secretspec.dev (SSL broken, use http + click through safe browsing)
 **Repo:** https://github.com/cachix/secretspec
-**Nixpkgs:** `pkgs.secretspec` (v0.12.0 in nixpkgs; upstream stable `v0.16.0`), `pkgs/by-name/se/secretspec/package.nix`
+**Installed at:** `~/.local/bin/secretspec` (v0.16.0) — direct release download from `cachix/secretspec` v0.16.0 tag (released 2026-07-18). Nixpkgs `pkgs.secretspec` lags upstream at v0.12.0; the `pkgs/by-name/se/secretspec/package.nix` definition is still tracking the older version.
 **License:** Apache 2.0
 
 ## Architecture
@@ -106,7 +108,10 @@ DATABASE_URL = { required = true, providers = ["prod_vault", "keyring"] }
 ```bash
 secretspec init                         # Create secretspec.toml (--from dotenv)
 secretspec config init                  # User config (provider, profile)
+secretspec schema                       # Print the resolved secretspec.toml as a JSON schema (v0.16+)
 secretspec check                        # Validate all required secrets resolve
+secretspec check --profile development  # Profile override; walks up from CWD for the manifest
+secretspec check -f ./secretspec.toml   # Explicit manifest path (v0.16 dropped `--manifest`; uses `-f / --file` + CWD inference)
 secretspec get KEY                      # Resolve and print one secret
 secretspec set KEY VALUE                # Store a secret
 secretspec run -- <cmd>                 # Resolve + inject as env vars + run cmd
@@ -114,15 +119,21 @@ secretspec run --profile prod -- <cmd>
 secretspec run --provider dotenv -- <cmd>
 ```
 
+> **v0.16 CLI-shape change:** the legacy `--manifest` flag on `check` was
+> replaced by `-f / --file <FILE>`, defaulting to walking up from the CWD
+> to find a `secretspec.toml`. New subcommands since v0.12: `schema`, `export`.
+
 ## nixpkgs Status
 
-**Package:** `pkgs.secretspec` (v0.12.0)
-**Path:** `pkgs/by-name/se/secretspec/package.nix`
-**Maintainers:** Domen Kozar, Sander (both Cachix)
+**Installed CLI:** `~/.local/bin/secretspec` (v0.16.0, ELF prebuilt for `x86_64-unknown-linux-gnu`).
+**Upstream:** `cachix/secretspec` v0.16.0 release tag (published 2026-07-18). Binary tarballs per Rust target triple on the GitHub Releases page.
+**Nixpkgs (lagging):** `pkgs.secretspec` (v0.12.0).
+**Nixpkgs path:** `pkgs/by-name/se/secretspec/package.nix`.
+**Maintainers:** Domen Kozar, Sander (both Cachix).
 **Platforms:** Linux, macOS, Windows, FreeBSD, NetBSD, etc.
-**License:** Apache 2.0
+**License:** Apache 2.0.
 
-No flake.nix exists upstream — users install via nixpkgs or the curl installer.
+Upstream repo `cachix/secretspec` has **no** `flake.nix` — the canonical install path is direct release tarball download from GitHub Releases. Nixpkgs is available but trails upstream by several minor versions.
 
 ## NixOS Integration Status (ISSUE #65)
 
@@ -425,3 +436,129 @@ https://github.com/reverb256/astral-key/issues/16
 (`docs/secretspec.md` in the astral-key repo is the upstream-facing companion
 doc and will be linked here once it ships — kept out of this file to avoid a
 dangling cross-repo link.)
+
+## Audit 2026-07-26 — surfaced-issue inventory
+
+A consolidated log of issues surfacing across prior turns and either
+resolved or tracked at this date.
+
+**Resolved this audit:**
+
+- `sops//` typo in `secretspec.toml` Mining section comment (`included for
+  \`sops//\` route parity…`): fixed to `sops://`.
+- `secretspec.toml`'s `[profiles.production.defaults]` referenced Phase 3
+  providers (`onepassword`, `keyring`) not registered in `[providers]`:
+  corrected to `["dotenv", "env"]` for Phase 1.
+- `README.md`'s "validation via `secretspec check` is not yet run because the
+  CLI is not installed" claim was stale (v0.16 installed at
+  `~/.local/bin/secretspec` since 2026-07-23, TOML parses cleanly):
+  rewritten.
+- `migration-matrix.md` totals drifted from "23 declared, 26 pending" to
+  "49 declared, 0 pending" after Phase 1 close-of-scope expansion.
+- `secretspec --version` and `secretspec schema` (`-f` flag) confirmed
+  the v0.16 release tarball binary parses the 49-entry TOML cleanly.
+
+**Tracked — open upstream (re-confirmed unchanged as of 2026-07-23):**
+
+- PR #58 SOPS provider (DRAFT, OPEN, author `euphemism` unresponsive since
+  Jul 1 to Domen's Jul 17 provider-credentials rework request).
+- Issue #65 NixOS module (OPEN; community workaround:
+  `systemd-creds encrypt` + SSH pipe + `LoadCredentialEncrypted=`).
+- Issue #41 systemd-creds provider (OPEN; community-preferred path over a
+  sops-nix-style NixOS module).
+- Issue #2363 devenv per-profile secretspec (OPEN;
+  `SECRETSPEC_PROFILE` env var is the official devenv workaround).
+- PR #16 astral-key endpoint spec (OPEN, OPEN-comment posted 2026-07-23
+  as the upstream team's reference — no team reply as of 2026-07-26).
+
+**Tracked — newly surfaced upstream signals (this audit):**
+
+- **PR #174 `feat: add age provider`** (ap-1:feat/age-provider,
+  OPEN 2026-07-19). Age is one of SOPS's six backends; this PR competes
+  with our SOPS provider's age path. Decision point at provider-build
+  time: reuse upstream (`ap-1`'s age backend) vs implement per Domen's
+  "provider credentials" pattern.
+- **PR #98 `docs: draft Secret Provider Protocol v1`** (DRAFT,
+  OPEN 2026-05-28). Specifies the upstream API surface custom providers
+  must target. `sops-provider-design.md`'s `ProviderFn` shape should
+  align with this draft before submitting upstream.
+
+**Tracked — Phase 1 runtime limit (this audit):**
+
+- `secretspec check` full resolution requires a populated `.env.secrets`
+  (gitignored per `.gitignore`). On a clean checkout of this repo, the 3
+  development-profile AI-key overrides resolve (they have
+  `default = "..."`); the remaining 46 entries halt on
+  `No provider backend configured`. ✅ **resolved** by shipping
+  `.env.secrets.example` + `scripts/bootstrap-dev.sh` (run
+  `./scripts/bootstrap-dev.sh --force && secretspec check --profile
+  development` exits 0 cleanly) and adding `[profiles.*.defaults]
+  providers = ["dotenv", "env"]` blocks to `secretspec.toml` for
+  default/production/development profiles.
+
+## Phase status as of 2026-07-26
+
+Snapshot of where the migration plan stands across all four phases,
+plus the four sub-phases of `sops-provider-design.md`.
+
+### Migration phases (CONTEXT.md → "Migration Path")
+
+- **Phase 1 — Declare** ✅ **closed** (2026-07-26). All 49 secrets
+  declared in `secretspec.toml`; `secretspec check --profile default`
+  + `--profile development` both exit 0 with bootstrap-populated
+  `.env.secrets`. Per-profile `providers.defaults` blocks wired
+  (`["dotenv", "env"]` for default/production/development).
+- **Phase 2 — SOPS provider** 🟡 **in progress** (2026-07-26).
+  Crate `secretspec-provider-sops` ships a working CLI shim with
+  the full format-handling quartet (yaml + json + dotenv + bin
+  round-trip through real sops), 33+ tests passing. Awaiting the
+  SecretSpec-facing JSON interface aligned with
+  cachix/secretspec#98 provider protocol (a `ProviderFn`-shape
+  wrapper module, planned). Blocked on time-budget only, not
+  upstream. Migration-matrix.md's Phase 2 trigger now says: (A)
+  cachix/secretspec PR #58 OR (B) our crate's SecretSpec-facing
+  wrapper ships. We're aiming for (B).
+- **Phase 2.5 — CI gate + Provider scaffold** ✅ **closed this turn**
+  (2026-07-26). `.github/workflows/ci.yml` ships the production-
+  readiness gate so the production-readiness + test layer is
+  machine-enforced; `provider-rust/src/secretspec.rs` ships
+  `SopsFileProvider` as the Phase 3 SCAFFOLD awaiting cachix/
+  secretspec#98 protocol alignment (PR confirmed OPEN).
+- **Phase 3 — Per-secret migration** 🟡 **decisioned** (2026-07-26).
+  Per-secret final-provider targets documented in
+  `migration-matrix.md` (Phase 3 column). Implementation deferred
+  until the Phase 2 deliverable is upstream-mergeable (no point
+  shipping per-secret storage decisions while the provider itself
+  isn't upstreamable).
+- **Phase 4 — NixOS runtime** 🔒 **blocked upstream** (2026-07-26).
+  No NixOS module exists (cachix/secretspec issue #65 still open);
+  no `systemd-creds` provider (issue #41 still open). Documented
+  workaround: `systemd-creds encrypt` over SSH +
+  `LoadCredentialEncrypted=` in the deploy script. No code action
+  this turn.
+
+### Crate sub-phases (sops-provider-design.md → "Phasing")
+
+- **Phase 1 — CLI shim + credential chain pattern** ✅ **closed**
+  (CLI shim wrapping `sops --decrypt` with the
+  `(uri, credentials)` provider-config shape per v0.15+).
+- **Phase 2 — Format handling** ✅ **closed this turn** (2026-07-26).
+  yaml + json + dotenv + bin all round-trip through real
+  `sops --decrypt` via the lib + CLI smoke tests.
+  All four formats covered end-to-end; the `infer_format_from_path`
+  heuristic handles `.yaml`/`.yml`/`.json`/`.env`/`.env.<suffix>`/
+  `*.env`/`.bin`/other-lowercase/None.
+- **Phase 3 — FFI** 🟡 **punted** waiting on the `sops-ffi` external
+  crate maturity (per Domen Kozar's Jun 4 invite hint). The crate
+  architecturally avoids reimplementing SOPS keytree plumbing —
+  shelling out to `sops` keeps us free of that constraint.
+- **Phase 3.5 — SecretSpec-facing Provider scaffold** 🟡
+  **scaffolded this turn** (2026-07-26). `SopsFileProvider` in
+  `provider-rust/src/secretspec.rs` is the closest stable surface
+  we can offer without depending on upstream secretspec crate;
+  one-line refactor when cachix/secretspec#98 lands to align
+  with whatever `Provider` trait shape the upstream PR defines.
+- **Phase 4 — Upstream PR** 🟡 **pending** — awaits Phase 2.5/3.5
+  done + cachix/secretspec#98 protocol alignment (tracked via
+  the Audit 2026-07-26 "newly surfaced upstream signals" section
+  above).
