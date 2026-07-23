@@ -5,8 +5,8 @@
 //!
 //! Wire format: line-delimited JSON over stdio (stdin = commands, stdout = responses).
 //! First request is `Hello` carrying `config_file`, `protocol_version`, `uri`,
-//! `context`. Operations: hello, get, set, batch_get, reflect, bye.
-//! `get` and `batch_get` return `value: null` (NOT error) for missing keys.
+//! `context`. Operations: hello, get, set, track_get, reflect, bye.
+//! `get` and `track_get` return `value: null` (NOT error) for missing keys.
 //!
 //! Error envelope: `{ok: false, error: {kind, message}}` with `kind` in the
 //! closed set not_found | auth_failed | permission_denied | rate_limited |
@@ -217,7 +217,10 @@ mod tests {
                 assert_eq!(h.protocol_version, 1);
                 assert_eq!(h.uri, "opproxy://vault/Production?reason=build");
                 assert_eq!(h.config_file, "/abs/path/to/secretspec.toml");
-                assert_eq!(h.context.get("reason").unwrap().as_str(), Some("building api image"));
+                assert_eq!(
+                    h.context.get("reason").unwrap().as_str(),
+                    Some("building api image")
+                );
             }
             _ => panic!("expected Hello"),
         }
@@ -253,9 +256,13 @@ mod tests {
 
     #[test]
     fn get_response_serializes_null_for_miss() {
-        let resp = Response::Get(GetResponse { ok: true, value: None });
+        let resp = Response::Get(GetResponse {
+            ok: true,
+            value: None,
+        });
         let s = serde_json::to_string(&resp).unwrap();
-        assert!(s.contains(""value":null"), "got: {s}");
+        let needle = r#""value":null"#;
+        assert!(s.contains(needle), "missing value:null marker in: {s}");
     }
 
     #[test]
@@ -265,7 +272,11 @@ mod tests {
             value: Some("postgres://example".to_string()),
         });
         let s = serde_json::to_string(&resp).unwrap();
-        assert!(s.contains(""value":"postgres://example""), "got: {s}");
+        let needle = r#""value":"postgres://example""#;
+        assert!(
+            s.contains(needle),
+            "missing value:<postgres://example> in: {s}"
+        );
     }
 
     #[test]
@@ -285,8 +296,17 @@ mod tests {
     fn error_response_envelope_shape() {
         let resp = Response::error("not_found", "key `k` not in `secrets.yaml`");
         let s = serde_json::to_string(&resp).unwrap();
-        assert!(s.contains(""ok":false"), "got: {s}");
-        assert!(s.contains(""kind":"not_found""), "got: {s}");
-        assert!(s.contains(""message":"), "got: {s}");
+        let needle_ok = r#""ok":false"#;
+        let needle_kind = r#""kind":"not_found""#;
+        let needle_msg = r#""message":"#;
+        assert!(s.contains(needle_ok), "missing ok:false flag in: {s}");
+        assert!(
+            s.contains(needle_kind),
+            "missing kind:not_found tag in: {s}"
+        );
+        assert!(
+            s.contains(needle_msg),
+            "missing message field in: {s}"
+        );
     }
 }
