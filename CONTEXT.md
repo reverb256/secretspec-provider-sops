@@ -368,7 +368,7 @@ Client resolves secrets:  GET /api/v1/secret/data/JWT_SECRET
 SecretSpec vault provider:  vault://http://astral-key:8080/v1/secret
                               │
                               ▼
-SOPS provider chain (future):  age_key resolved from astral-key → decrypt sops files
+SOPS provider chain (Phase 2; pending cachix/secretspec PR #58 OR our crate build): age_key resolved from astral-key → decrypt sops files
 ```
 
 ### Provider credentials chain (mirrors SOPS provider architecture)
@@ -377,13 +377,38 @@ The same pattern used by the SOPS provider (being built) applies to astral-key:
 
 ```toml
 [providers]
-keyring = "keyring://"
-astral_vault = { uri = "vaultwarden://...", credentials = { token = "keyring" } }
+keyring  = "keyring://"
+astral_vault = {
+  uri = "vault://http://astral-key:8080/v1/secret?auth=approle",
+  credentials = { role_id = "keyring" },
+}
 
 [profiles.production]
-JWT_SECRET = { providers = ["astral_vault"] }
+JWT_SECRET   = { providers = ["astral_vault"] }
 DATABASE_URL = { providers = ["astral_vault"] }
 ```
+
+> *Notes:*
+> 1. **`[providers.astral_vault]` as an inline table** with `uri` + `credentials`
+>    is illustrative — CONTEXT.md does not document the exact provider-config
+>    TOML shape. Confirm against SecretSpec's actual provider config trait
+>    before locking this in. The `vault://` URI itself is real (CONTEXT.md
+>    providers table).
+> 2. **Per-secret vs. profile-wide shared defaults.** This block uses
+>    *per-secret* overrides (`JWT_SECRET = { providers = ["astral_vault"] }`
+>    — one rule per secret). For *profile-wide shared* settings (apply
+>    `astral_vault` to every secret in production automatically), the
+>    pattern is `[profiles.production.defaults] providers = ["astral_vault", ...]`
+>    — the actual `secretspec.toml` in this repo uses that pattern. A reader
+>    copying this illustration verbatim would diverge from the file's own
+>    production profile shape; don't.
+> 3. **The `vault://…/v1/secret` URI here is generic** — the `/data/<path>`
+>    suffix Vault KV v2 requires for a single-secret read is appended from
+>    the secret name when SecretSpec resolves the value (e.g., `JWT_SECRET`
+>    → `/v1/secret/data/JWT_SECRET`). By contrast, the credentials block in
+>    `sops-provider-design.md` uses an *explicit path* (`…/data/age_key`)
+>    because it specifies which credential gets fetched — different
+>    abstraction level, same Vault KV v2 primitive.
 
 This is architecturally identical to how the SOPS provider resolves `age_key`
 from keyring → decrypts sops files. Both use SecretSpec's provider credentials
@@ -391,5 +416,9 @@ pattern (Domen Kozar's requirement for upstream acceptance).
 
 ### Full docs
 
-See [`docs/secretspec.md`](../../docs/secretspec.md) in the astral-key repo.
-Tracking issue: https://github.com/reverb256/astral-key/issues/16
+See astral-key tracking issue for architectural discussion:
+https://github.com/reverb256/astral-key/issues/16
+
+(`docs/secretspec.md` in the astral-key repo is the upstream-facing companion
+doc and will be linked here once it ships — kept out of this file to avoid a
+dangling cross-repo link.)

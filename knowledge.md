@@ -41,3 +41,4 @@ This is a **research and planning workspace** for migrating from `sops-nix` to `
 ## Related projects worth knowing
 - `sops-nix` (Mic92) — current NixOS standard; used via `sops.secrets.<name>.path`
 - `varlock` — newer, complementary (not a competitor); adds log redaction
+- `astral-key` (reverb256/astral-key) — Web3/FIDO2/Passkey microservice slated to act as SecretSpec's `vault://` backend by emulating Vault's AppRole auth flow. Tracking issue: https://github.com/reverb256/astral-key/issues/16

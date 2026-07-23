@@ -71,9 +71,18 @@ locking this in):**
 [providers.sops]
 uri = "sops://./secrets.yaml"
 credentials = {
-  age_key               = "keyring://personal?service=sops-age",
+  # age_key is sourced through the astral-key vault-emulating endpoint
+  # once astral_key Phase 1 ships (CONTEXT.md "astral-key Integration").
+  # Until then, fall back to a local keyring-stored age recipient.
+  age_key               = "vault://http://astral-key:8080/v1/secret/data/age_key?auth=approle",
   aws_secret_access_key = "onepassword://Homelab/item/aws-deploy",
 }
+```
+
+If `astral-key` is not yet deployed in the environment, swap to:
+
+```toml
+age_key = "keyring://personal?service=sops-age",
 ```
 
 The provider impl treats `credentials.<key>` as another SecretSpec resolution,
