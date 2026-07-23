@@ -83,17 +83,17 @@ jobs:
       # secretspec profile gate: coupled to .env.secrets populated by bootstrap-dev.sh above;
       # validates default → development → production inheritance chain end-to-end.
       - name: secretspec check --profile default
-        run: "$HOME/.local/bin/secretspec" check --profile default -f ./secretspec.toml
+        run: '"$HOME/.local/bin/secretspec" check --profile default -f ./secretspec.toml'
 
       - name: secretspec check --profile development
-        run: "$HOME/.local/bin/secretspec" check --profile development -f ./secretspec.toml
+        run: '"$HOME/.local/bin/secretspec" check --profile development -f ./secretspec.toml'
 
       - name: secretspec check --profile production
-        run: "$HOME/.local/bin/secretspec" check --profile production -f ./secretspec.toml
+        run: '"$HOME/.local/bin/secretspec" check --profile production -f ./secretspec.toml'
 
       - name: provider-rust binary smoke (doctor)
         working-directory: provider-rust
-        run: "$PWD/target/release/secretspec-provider-sops" doctor
+        run: '"$PWD/target/release/secretspec-provider-sops" doctor'
 
       # provider-rust end-to-end SOPS bridge (test fixture decrypt):
       # Generates an ephemeral age keypair + encrypts fixtures/test-secrets.yaml
