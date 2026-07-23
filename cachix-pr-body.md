@@ -19,7 +19,7 @@ Adds a `sops://file.<yaml|json|env|bin>` URI scheme to SecretSpec, backed by a s
 - **All six SOPS backends** are supported via shell-out to `sops --decrypt` — we source credentials only; SOPS itself does the work.
 - **CLI subcommand surface**: `secretspec-provider-sops get <file> <key> [--format yaml|json|dotenv|bin]` (text keys); `secretspec-provider-sops get <file> --format bin` (whole-file binary); `doctor` smoke-tests sops/age binary presence + versions.
 - **Audited output**: every secret record passes through SecretSpec's framework redactor; `FieldSpec.sensitive = true` honors masking in logs/audit/URI serialization.
-- **Tests**: 8 unit + 5 doctests + 6 CLI smoke + integration tests against real sops files — **36 total**, all passing under `cargo test`. Format quartet covered end-to-end with round-trip against real `sops --decrypt`. End-to-end SOPS bridge CI-verified (`.github/workflows/ci.yml` asserts provider-rust binary decrypts an ephemeral age-encrypted fixture end-to-end).
+- **Tests**: **36 total** per `cargo test` (lib 16 + integration 8 + cli_smoke 6 + doctest 6; per `knowledge.md` canonical tally). Format quartet covered end-to-end with round-trip against real `sops --decrypt`. End-to-end SOPS bridge CI-verified (`.github/workflows/ci.yml` asserts provider-rust binary decrypts an ephemeral age-encrypted fixture end-to-end).
 - **Documentation matrix**: `CONTEXT.md`, `sops-provider-design.md`, `migration-matrix.md`.
 
 ## Why build it ourselves
@@ -60,7 +60,7 @@ The seven-point checklist from `CONTEXT.md` → "Build Intent: SOPS Provider" �
 
 ## Test plan
 
-- `cargo test --all-features` — 8 unit + 5 doctests + 6 CLI smoke + integration; all four formats round-trip through real `sops --decrypt`.
+- `cargo test --all-features` — **36 tests total** (lib 16 + integration 8 + cli_smoke 6 + doctest 6; per `knowledge.md` canonical tally); all four formats round-trip through real `sops --decrypt`.
 - **End-to-end SOPS bridge** (CI-enforced) — `.github/workflows/ci.yml` step generates an ephemeral age keypair, encrypts a plaintext fixture inline via `sops --encrypt`, then asserts `secretspec-provider-sops get <encrypted> <key>` returns the expected plaintext for each of 4 representative homelab keys (`nvidia_api_key`, `openai_api_key`, `huggingface_token`, `github_token`). Ephemeral keypair + ciphertext regenerated on every CI run — no test secret material ever lands in git.
 - **Manifest-level** — post-#98 alignment, `secretspec check -f secretspec.toml --profile default` + `--profile production` + `--profile development` exit 0 across all 49 declared homelab keys via the SOPS provider chain.
 
