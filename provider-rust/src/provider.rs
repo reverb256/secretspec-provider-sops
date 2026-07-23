@@ -134,22 +134,16 @@ impl SopsProvider {
     /// `key` may be a flat identifier (`nvidia_api_key`) or a dot
     /// path (`services.openai.org_id`). Phase 2 callers can pass a
     /// richer key shape if needed.
-    async fn extract_yaml_json(
-        &self,
-        file: &str,
-        key: &str,
-    ) -> Result<String, SopsError> {
+    async fn extract_yaml_json(&self, file: &str, key: &str) -> Result<String, SopsError> {
         let plaintext = sops_decrypt_with_env(file, self.age_keyfile.as_deref()).await?;
         let value: serde_yaml::Value = serde_yaml::from_str(&plaintext)
             .map_err(|e| SopsError::DecryptionFailed(format!("yaml parse: {e}")))?;
         let mut current = &value;
         for part in key.split('.') {
-            let mapping = current
-                .as_mapping()
-                .ok_or_else(|| SopsError::KeyNotFound {
-                    file: file.to_string(),
-                    key: key.to_string(),
-                })?;
+            let mapping = current.as_mapping().ok_or_else(|| SopsError::KeyNotFound {
+                file: file.to_string(),
+                key: key.to_string(),
+            })?;
             let next = mapping
                 .get(serde_yaml::Value::String(part.to_string()))
                 .ok_or_else(|| SopsError::KeyNotFound {
@@ -169,11 +163,7 @@ impl SopsProvider {
     /// inline `#` comments. Punted from `--extract` because sops
     /// dotenv mode doesn't accept it. Symmetric counterpart to
     /// `extract_yaml_json`: both go through `sops_decrypt_with_env`.
-    async fn extract_dotenv(
-        &self,
-        file: &str,
-        key: &str,
-    ) -> Result<String, SopsError> {
+    async fn extract_dotenv(&self, file: &str, key: &str) -> Result<String, SopsError> {
         let plaintext = sops_decrypt_with_env(file, self.age_keyfile.as_deref()).await?;
         for raw_line in plaintext.lines() {
             if let Some((k, v)) = parse_dotenv_line(raw_line) {
@@ -242,8 +232,14 @@ impl SopsProvider {
             .or_else(|| infer_format_from_path(file));
 
         match fmt.as_deref() {
-            Some("yaml") => self.extract_yaml_json(file, key).await.map(String::into_bytes),
-            Some("json") => self.extract_yaml_json(file, key).await.map(String::into_bytes),
+            Some("yaml") => self
+                .extract_yaml_json(file, key)
+                .await
+                .map(String::into_bytes),
+            Some("json") => self
+                .extract_yaml_json(file, key)
+                .await
+                .map(String::into_bytes),
             Some("dotenv") => self.extract_dotenv(file, key).await.map(String::into_bytes),
             Some("bin") => self.extract_bin(file).await,
             Some(other) => Err(SopsError::UnsupportedFormat {
@@ -332,10 +328,7 @@ async fn sops_decrypt_with_env_bytes(
 /// id mismatch). We intentionally do NOT special-case any stderr
 /// pattern here — the caller's lookup logic is the source of truth
 /// for which keys exist.
-async fn sops_decrypt_with_env(
-    file: &str,
-    keyfile: Option<&Path>,
-) -> Result<String, SopsError> {
+async fn sops_decrypt_with_env(file: &str, keyfile: Option<&Path>) -> Result<String, SopsError> {
     let mut cmd = Command::new("sops");
     cmd.args(["--decrypt", file]);
     if let Some(kf) = keyfile {
@@ -526,11 +519,7 @@ fn which_sync(name: &str) -> Option<String> {
 }
 
 async fn which(name: &str) -> Option<String> {
-    let out = Command::new("which")
-        .arg(name)
-        .output()
-        .await
-        .ok()?;
+    let out = Command::new("which").arg(name).output().await.ok()?;
     if out.status.success() {
         Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
     } else {
@@ -552,19 +541,31 @@ mod tests {
 
     #[test]
     fn infer_format_yaml_variants() {
-        assert_eq!(infer_format_from_path("secrets.yaml"), Some("yaml".to_string()));
-        assert_eq!(infer_format_from_path("secrets.yml"), Some("yaml".to_string()));
+        assert_eq!(
+            infer_format_from_path("secrets.yaml"),
+            Some("yaml".to_string())
+        );
+        assert_eq!(
+            infer_format_from_path("secrets.yml"),
+            Some("yaml".to_string())
+        );
     }
 
     #[test]
     fn infer_format_json() {
-        assert_eq!(infer_format_from_path("data.json"), Some("json".to_string()));
+        assert_eq!(
+            infer_format_from_path("data.json"),
+            Some("json".to_string())
+        );
     }
 
     #[test]
     fn infer_format_dotenv() {
         assert_eq!(infer_format_from_path(".env"), Some("dotenv".to_string()));
-        assert_eq!(infer_format_from_path("config.env"), Some("dotenv".to_string()));
+        assert_eq!(
+            infer_format_from_path("config.env"),
+            Some("dotenv".to_string())
+        );
     }
 
     #[test]
@@ -578,7 +579,10 @@ mod tests {
     #[test]
     fn parse_dotenv_line_basic() {
         assert_eq!(parse_dotenv_line("FOO=bar"), Some(("FOO", "bar")));
-        assert_eq!(parse_dotenv_line("FOO=\"bar baz\""), Some(("FOO", "bar baz")));
+        assert_eq!(
+            parse_dotenv_line("FOO=\"bar baz\""),
+            Some(("FOO", "bar baz"))
+        );
         assert_eq!(parse_dotenv_line("FOO='qux'"), Some(("FOO", "qux")));
         assert_eq!(parse_dotenv_line("FOO="), Some(("FOO", "")));
     }
@@ -586,7 +590,10 @@ mod tests {
     #[test]
     fn parse_dotenv_line_export_prefix() {
         assert_eq!(parse_dotenv_line("export FOO=bar"), Some(("FOO", "bar")));
-        assert_eq!(parse_dotenv_line("  export FOO=\"baz\""), Some(("FOO", "baz")));
+        assert_eq!(
+            parse_dotenv_line("  export FOO=\"baz\""),
+            Some(("FOO", "baz"))
+        );
     }
 
     #[test]
@@ -598,15 +605,27 @@ mod tests {
 
     #[test]
     fn parse_dotenv_line_inline_comment() {
-        assert_eq!(parse_dotenv_line("FOO=bar # trailing comment"), Some(("FOO", "bar")));
-        assert_eq!(parse_dotenv_line("FOO=bar # comment with # in it"), Some(("FOO", "bar")));
+        assert_eq!(
+            parse_dotenv_line("FOO=bar # trailing comment"),
+            Some(("FOO", "bar"))
+        );
+        assert_eq!(
+            parse_dotenv_line("FOO=bar # comment with # in it"),
+            Some(("FOO", "bar"))
+        );
     }
 
     #[test]
     fn parse_dotenv_line_quoted_value_preserves_hash() {
         // Inside quotes, `#` is not a comment marker.
-        assert_eq!(parse_dotenv_line("FOO=\"bar # baz\""), Some(("FOO", "bar # baz")));
-        assert_eq!(parse_dotenv_line("FOO='qux # quux'"), Some(("FOO", "qux # quux")));
+        assert_eq!(
+            parse_dotenv_line("FOO=\"bar # baz\""),
+            Some(("FOO", "bar # baz"))
+        );
+        assert_eq!(
+            parse_dotenv_line("FOO='qux # quux'"),
+            Some(("FOO", "qux # quux"))
+        );
     }
 
     #[test]
@@ -626,7 +645,10 @@ mod tests {
     fn strip_inline_comment_quoting() {
         assert_eq!(strip_inline_comment("bar # c"), "bar ");
         assert_eq!(strip_inline_comment("bar \"# not c\""), "bar \"# not c\"");
-        assert_eq!(strip_inline_comment("bar 'still not c' # c"), "bar 'still not c' ");
+        assert_eq!(
+            strip_inline_comment("bar 'still not c' # c"),
+            "bar 'still not c' "
+        );
         assert_eq!(strip_inline_comment("bar # a\\\"b"), "bar ");
     }
 

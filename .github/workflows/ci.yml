@@ -35,7 +35,10 @@ jobs:
       # (rustfmt + clippy); the dtolnay/rust-toolchain action picks it up
       # automatically — no separate `rustup component add` step needed.
       - name: Install Rust per rust-toolchain.toml
-        uses: dtolnay/rust-toolchain@1.78
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.78.0
+          components: rustfmt, clippy
 
       # Cargo target cache keyed on provider-rust/Cargo.lock hashing —
       # ~70% faster rebuilds on subsequent pushes to the same ref.
@@ -49,7 +52,9 @@ jobs:
 
       - name: Install sops / age / age-keygen binaries
         run: |
-          nix profile install nixpkgs#sops nixpkgs#age nixpkgs#age-keygen
+          # nixpkgs#age-keygen is no longer a top-level flake attribute; modern nixpkgs ships
+          # age-keygen as a sub-binary of nixpkgs#age (pkgs.age/bin/age-keygen). Installing pkgs.age is sufficient.
+          nix profile install nixpkgs#sops nixpkgs#age
           which sops age age-keygen
 
       - name: cargo fmt --check
@@ -80,12 +85,53 @@ jobs:
       - name: bootstrap-dev.sh (populate .env.secrets from template)
         run: ./scripts/bootstrap-dev.sh --force
 
+      # secretspec profile gate: coupled to .env.secrets populated by bootstrap-dev.sh above;
+      # validates default → development → production inheritance chain end-to-end.
       - name: secretspec check --profile default
-        run: "$HOME/.local/bin/secretspec" check --profile default -f ./secretspec.toml
+        run: '"$HOME/.local/bin/secretspec" check --profile default -f ./secretspec.toml'
 
       - name: secretspec check --profile development
-        run: "$HOME/.local/bin/secretspec" check --profile development
+        run: '"$HOME/.local/bin/secretspec" check --profile development -f ./secretspec.toml'
+
+      - name: secretspec check --profile production
+        run: '"$HOME/.local/bin/secretspec" check --profile production -f ./secretspec.toml'
 
       - name: provider-rust binary smoke (doctor)
         working-directory: provider-rust
-        run: "$PWD/target/release/secretspec-provider-sops" doctor
+        run: '"$PWD/target/release/secretspec-provider-sops" doctor'
+
+      # provider-rust end-to-end SOPS bridge (test fixture decrypt):
+      # Generates an ephemeral age keypair + encrypts fixtures/test-secrets.yaml
+      # inline; asserts `secretspec-provider-sops get <encrypted> <key>` returns
+      # the expected plaintext for each key. Closes the end-to-end validation
+      # gap while upstream cachix/secretspec#58 + #98 remain OPEN (formal
+      # sops:// wiring in secretspec.toml stays deferred to keep Phase 1 exit 0).
+      - name: provider-rust end-to-end SOPS bridge (test fixture decrypt)
+        working-directory: provider-rust
+        run: |
+          set -e
+          # Pin binary path BEFORE any `cd` — $PWD would otherwise resolve to /tmp.
+          BIN="${GITHUB_WORKSPACE}/provider-rust/target/release/secretspec-provider-sops"
+          test -x "$BIN" || { echo "FAIL: binary not found at $BIN"; exit 1; }
+          BDIR=/tmp/sops-bridge-test
+          rm -rf "$BDIR" && mkdir -p "$BDIR"
+          cd "$BDIR"
+          age-keygen -o test-age.key >/dev/null
+          chmod 600 test-age.key
+          AGE_PUB=$(grep '^# public key:' test-age.key | awk '{print $NF}')
+          cp "${GITHUB_WORKSPACE}/fixtures/test-secrets.yaml" test-secrets.yaml
+          SOPS_AGE_KEY_FILE="$BDIR/test-age.key" sops --encrypt --age "$AGE_PUB" --in-place test-secrets.yaml
+
+          expected_keys=(nvidia_api_key openai_api_key huggingface_token github_token)
+          expected_values=(nvapi-bridge-known sk-bridge-known hf-bridge-known ghp-bridge-known)
+          for i in "${!expected_keys[@]}"; do
+            key="${expected_keys[$i]}"
+            want="${expected_values[$i]}"
+            got=$(SOPS_AGE_KEY_FILE="$BDIR/test-age.key" "$BIN" get "$BDIR/test-secrets.yaml" "$key")
+            if [ "$got" != "$want" ]; then
+              echo "FAIL: $key — got '$got' want '$want'"
+              exit 1
+            fi
+            echo "PASS: $key decrypted to '$got'"
+          done
+          echo "ALL PASS: provider-rust SOPS bridge round-trip succeeded for 4 keys"
