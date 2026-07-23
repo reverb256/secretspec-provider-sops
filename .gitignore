@@ -17,3 +17,10 @@ target/
 .env.production
 !.env.secrets.example
 !.env.production.example
+
+# Test fixtures should only include placeholder plaintext (the SOPS bridge
+# in .github/workflows/ci.yml regenerates ephemeral age keypairs in /tmp
+# at runtime). If anyone runs the bridge locally and accidentally drops
+# the test-age.key into fixtures/, the gitignore rule below prevents
+# accidental commit of the artifact.
+fixtures/*.key
