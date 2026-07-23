@@ -805,8 +805,78 @@ plus the four sub-phases of `sops-provider-design.md`.
   `provider-rust/src/secretspec.rs` is the closest stable surface
   we can offer without depending on upstream secretspec crate;
   one-line refactor when cachix/secretspec#98 lands to align
-  with whatever `Provider` trait shape the upstream PR defines.
-- **Phase 4 — Upstream PR** 🟡 **pending** — awaits Phase 2.5/3.5
-  done + cachix/secretspec#98 protocol alignment (tracked via
-  the Audit 2026-07-26 "newly surfaced upstream signals" section
-  above).
+  with whatever `Provider` trait shape the upstream PR defines.    - **Phase 4 — Upstream PR** 🟡 **pending** — awaits Phase 2.5/3.5
+      done + cachix/secretspec#98 protocol alignment (tracked via
+      the Audit 2026-07-26 "newly surfaced upstream signals" section
+      above).
+
+## Audit 2026-07-26 — lib.fakeHash SRI fallback applied (operational unblock)
+
+The literal instruction (`replace hash = lib.fakeHash; with the SRI
+from nix-prefetch-github --owner reverb256 --repo
+secretspec-provider-sops --rev v0.1.0`) is GATED on the upstream
+v0.1.0 release tag's publication. **Precondition re-check
+(negative, as of 2026-07-26):**
+
+- `git ls-remote --tags https://github.com/reverb256/secretspec-provider-sops`
+  still returns no `v0.1.0` ref.
+- Direct tarball probe `https://github.com/reverb256/secretspec-provider-sops/archive/refs/tags/v0.1.0.tar.gz`
+  returns HTTP 302/404 (tag continues to be absent upstream).
+
+Per the documented fallback path (this file's "Audit 2026-07-23 —
+lib.fakeHash SRI upstream precondition check" entry's Recommended
+next step), applied in the sibling `/etc/nixos` repository atomically:
+
+- `rev`: bumped from `"v0.1.0"` to origin/main HEAD SHA
+  `24e4813bb0d418ab93630e55710615aa32965cd5`.
+- `hash`: replaced `lib.fakeHash` with the NAR hash of that SHA's
+  tarball, computed locally as
+  `nix-prefetch-url --unpack --type sha256 https://github.com/reverb256/secretspec-provider-sops/archive/24e4813bb0d418ab93630e55710615aa32965cd5.tar.gz`
+  converted to SRI via `nix hash to-sri`. Final SRI:
+  `sha256-LdNi3L7jJJWZ3eTIbIzTfFSJSKa4Ant8ZdB7K/qKabI`.
+- 12-line inline comment block in
+  `/etc/nixos/pkgs/secretspec-provider-sops/default.nix` (lines
+  ~22-33) documents the fallback rationale + the literal migration
+  recipe once v0.1.0 ships.
+
+**Verification (post-edit):** `nix-instantiate` against the LIVE
+`/etc/nixos/pkgs/secretspec-provider-sops/default.nix` returned
+clean; the `fetchFromGitHub` outPath derivation accepts the new
+hash against the upstream tarball (a hash mismatch would surface
+as a link-fingerprint error during evaluation).
+
+**Operator-facing actions:**
+
+- Cluster hosts (`nexus`, `sentry`, `zephyr`, `forge`) need to run
+  their local NixOS rebuild (`nixos-rebuild switch --flake
+  /etc/nixos#<hostname>`) to bring the new
+  `secretspec-provider-sops` provider binary onto PATH.
+- The secretspec CI runner image picks up the new derivation on
+  its next rebuild; the existing CI gate in
+  `.github/workflows/ci.yml` exercises the provider binary and will
+  fail visibly if a future upstream change breaks the SHA-pinned
+  contract.
+
+**Cardinality cap:** the fallback SHA + SRI are conditional, not
+canonical. When upstream v0.1.0 ships, edit
+`/etc/nixos/pkgs/secretspec-provider-sops/default.nix` to set
+`rev = "v0.1.0"` and re-run the literal `nix-prefetch-github`
+command documented in that file's inline comment; the diff is a
+single attribute substitution. This audit entry closes the
+operational-unblock phase; a follow-up audit ledger entry will
+track the v0.1.0-tag migration when it happens.
+
+**Cross-references:**
+- `/etc/nixos/pkgs/secretspec-provider-sops/default.nix` (the
+  file modified; sibling repo, not in this git repo).
+- `/home/j_kro/Projects/secretspec/knowledge.md` Status snapshot
+  updated this turn to reflect the resolution.
+- `sops-provider-design.md`, `migration-matrix.md`: do not
+  reference the `lib.fakeHash` placeholder; no edits needed.
+
+**No code changes this repo this turn** — the literal action was
+gated on the upstream `v0.1.0` release tag's publication (not met as
+of 2026-07-26). Doc-only ledger entry preserves the verification
+trail; the actual code-config change landed in `/etc/nixos/` per the
+operational unblock directive.
+
