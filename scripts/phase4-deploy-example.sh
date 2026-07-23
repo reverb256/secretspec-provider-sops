@@ -52,13 +52,18 @@ resolve_secret() {
 # --- Pattern 1: in-host injection -----------------------------------------
 # The simplest path. Works on any host that has SecretSpec installed and a
 # secretspec.toml somewhere SecretSpec can find. No NixOS module needed.
+#
+# The user's <cmd> is wrapped in `sh -c "..."` so shell metacharacters
+# (`|`, `>`, `*`, env-var expansions, etc.) are interpreted normally;
+# without the wrapper, secretspec's `--` argv passthrough would treat
+# `|` as a literal arg (env would error on "no such file or directory").
 deploy_inject_service() {
   local cmd="$1"
-  echo "→ secretspec run -- ${cmd}"
+  echo "→ secretspec run -- sh -c \"${cmd}\""
   exec "$SECRETSPEC" run \
     -f "$REPO_ROOT/secretspec.toml" \
     ${SECRETSPEC_PROFILE:+--profile "$SECRETSPEC_PROFILE"} \
-    -- "$cmd"
+    -- sh -c "$cmd"
 }
 
 # --- Pattern 2: SSH-piped systemd-creds encrypt ---------------------------
