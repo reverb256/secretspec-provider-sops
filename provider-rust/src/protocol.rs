@@ -58,7 +58,8 @@ pub struct SecretRequest {
 pub struct SetRequest {
     pub project: String,
     pub key: String,
-    pub value: String,
+    #[serde(default)]
+    pub value: serde_json::Value,
     #[serde(default)]
     pub profile: Option<String>,
 }

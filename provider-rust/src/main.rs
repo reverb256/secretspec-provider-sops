@@ -18,8 +18,6 @@ use secretspec_provider_sops::protocol::{
     error_kind, HelloResponse, ReflectResponse, Response, SecretSchema,
 };
 use secretspec_provider_sops::provider::SopsProvider;
-use secretspec_provider_sops::SopsError;
-use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::io::{stdin, stdout};
 
@@ -50,7 +48,16 @@ async fn main() -> anyhow::Result<()> {
 async fn dispatch(req: secretspec_provider_sops::protocol::Request) -> Response {
     use secretspec_provider_sops::protocol::Request;
     match req {
-        Request::Hello(_h) => Response::Hello(HelloResponse::v1()),
+        Request::Hello(h) => {
+            if h.protocol_version != 1 {
+                Response::error(
+                    error_kind::UNSUPPORTED_VERSION,
+                    format!("protocol_version {} not supported (plugin supports 1)", h.protocol_version),
+                )
+            } else {
+                Response::Hello(HelloResponse::v1())
+            }
+        }
         Request::Get(g) => handle_get(g).await,
         Request::Set(s) => handle_set(s).await,
         Request::BatchGet(b) => handle_batch_get(b).await,
@@ -116,6 +123,3 @@ fn handle_reflect(_r: secretspec_provider_sops::protocol::ReflectRequest) -> Res
     Response::Reflect(ReflectResponse { ok: true, secrets })
 }
 
-// Suppress unused warnings on the imported-but-not-yet-called crash surface.
-#[allow(dead_code)]
-fn _suppress_unused(_e: &SopsError, _v: &Value) {}
