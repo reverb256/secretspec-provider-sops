@@ -13,7 +13,11 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
 fn bin_path() -> &'static str {
-    env!("CARGO_BIN_EXE_secretspec-provider-sops")
+    // NDJSON protocol provider lives in a separate bin target since
+    // the user-facing CLI binary (`secretspec-provider-sops`) gained
+    // clap subcommands for get/doctor/--help; see Cargo.toml's two
+    // `[[bin]]` entries.
+    env!("CARGO_BIN_EXE_secretspec-provider-sops-protocol")
 }
 
 #[tokio::test]

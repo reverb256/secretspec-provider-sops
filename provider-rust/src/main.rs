@@ -68,23 +68,42 @@ async fn dispatch(req: secretspec_provider_sops::protocol::Request) -> Response 
 
 async fn handle_get(g: secretspec_provider_sops::protocol::SecretRequest) -> Response {
     // Per spec section 5.1: missing keys return `value: null` (NOT error).
-    let provider = SopsProvider::new();
-    // proj -> file mapping: Phase 1 convention is one `.sops.yaml` per
-    // project; the SOPS file path is derived from `uri` in the SECRET
-    // layer (Host sends `uri = "sops://./secrets.yaml?<key=...>"`).
-    // For Phase 1, project is treated as 1-1 with a file basename;
-    // the host passes the actual file path via the get request's `key`
-    // field as `dot.path` (file_basename.key), OR we resolve from
-    // config_file plus convention. Until the host side stabilizes,
-    // return not_found for safety.
     //
-    // TODO(cachix/secretspec#98): when host enumerates where to look,
-    // wire `project` -> `[x-sops].projects.<name>` table reader.
-    let _ = (g.project.as_str(), &provider);
-    Response::Get(secretspec_provider_sops::protocol::GetResponse {
-        ok: true,
-        value: None, // Phase 1: not_found for all keys until host-side enumeration ships
-    })
+    // Phase 1.5 wiring: actually call `SopsProvider::get` against the
+    // file path that the host stashes in `g.project`. The host sends
+    // `project` carrying the SOPS file path (per cachix/secretspec#98's
+    // convention); we treat it as the encrypted file path. Any
+    // resolution error (file missing, key missing, sops binary
+    // unavailable) collapses to `value = None` per spec section 5.1.
+    // Audit hooks (Phase 3) can distinguish error kinds for telemetry;
+    // wire-protocol observers just see a clean `value: null`.
+    let provider = SopsProvider::new();
+    match provider.get(&g.project, &g.key, None).await {
+        Ok(value) => Response::Get(secretspec_provider_sops::protocol::GetResponse {
+            ok: true,
+            value: Some(value),
+        }),
+        Err(e) => {
+        // Spec §5.1 mandates `value: null` on the wire for any
+        // miss/error so the host sees a clean envelope. The `tracing::warn!`
+        // here records the real cause in the audit log (target
+        // `secretspec_provider_sops::audit`) so operators can distinguish
+        // a true key miss from a `sops`-binary-missing or decryption-failed
+        // event after the fact. Wire-protocol observers see `null`;
+        // audit observers see the cause.
+        tracing::warn!(
+            target: "secretspec_provider_sops::audit",
+            error = %e,
+            project = %g.project,
+            key = %g.key,
+            "resolve failed; returning null per spec §5.1"
+        );
+        Response::Get(secretspec_provider_sops::protocol::GetResponse {
+            ok: true,
+            value: None,
+        })
+    }
+    }
 }
 
 async fn handle_set(_s: secretspec_provider_sops::protocol::SetRequest) -> Response {
