@@ -519,6 +519,81 @@ resolved or tracked at this date.
   documenting cachix/secretspec#65 + #41 as **additive** features
   in flight, not blockers.
 
+## Audit 2026-07-23 — verification sweep (no new findings)
+
+Re-audited the full repo state to verify no regressions or new gaps have
+surfaced since the last audit ledger entry. Each item below was cross-checked
+on 2026-07-23 against the live source tree + local `cargo test` + local
+`secretspec check` execution:
+
+- **`secretspec.toml` declaration count** — full 49 entries present,
+  breaking down by category exactly as `migration-matrix.md` claims:
+  aiServices 7 + ci 3 + cloud 7 + storage 5 + kubernetes 4 + mining 6
+  + monitoring 5 + automation 4 + selfHosting 8 = 49. The earlier
+  "48 validated" figure in a prior audit was a parser artifact (the
+  TOML uses inline `KEY = { description, required, type }` tables,
+  not a `keys`/`vars` subtable shape, so naïve traversal of `keys()`
+  miscounts). Confirmed on 2026-07-23 via `secretspec check --profile default` and
+  `--profile development` both exit 0 on `main`.
+- **CI workflow integrity** — `.github/workflows/ci.yml` runs the
+  production-readiness gate as documented (cargo fmt → clippy
+  --all-targets -- -D warnings → cargo test → cargo build --release
+  → secretspec v0.16 install → bootstrap-dev.sh → secretspec check
+  default + development → provider-rust `doctor` smoke).
+  `.github/workflows/release.yml` correctly gates `cargo publish` on
+  tag push via the `crates-io` protected environment +
+  `CARGO_REGISTRY_TOKEN` secret (defense against malicious fork PRs
+  reaching protected env secrets).
+- **Dependabot scope** — `.github/dependabot.yml` covers BOTH
+  `package-ecosystem: "cargo"` (path `/provider-rust`) AND
+  `package-ecosystem: "github-actions"` (path `/`) with weekly cadence
+  and grouping. Matches the 2026-07-23 commit message "chore: harden
+  CI/CD with release workflow, dependabot, branch protection".
+- **CODEOWNERS** — `.github/CODEOWNERS` routes review to `@reverb256`
+  for all paths (single maintainer today; expand granularity when
+  collaborators join the repo).
+- **rust-toolchain pin** — `rust-toolchain.toml` pins Rust 1.78 +
+  rustfmt + clippy at repo root, matching ci.yml's
+  `dtolnay/rust-toolchain@1.78` install verbatim.
+- **`.gitignore` secret-file hygiene** — `.env.secrets` and
+  `.env.production` are explicitly ignored, with allowlist for the
+  `.env.secrets.example` and `.env.production.example` placeholder
+  templates. Bootstrapping via `scripts/bootstrap-dev.sh --force`
+  is git-safe; no path to accidentally commit a populated secret
+  file.
+- **Intentional ShellCheck SC2029 in `scripts/phase4-deploy-example.sh`** —
+  the disable directive at lines 87-89 is annotated inline with the
+  reasoning (`${service_name}-${key}` are LOCAL shell vars that
+  intentionally expand on this side before `ssh` transmits the
+  rendered command; the remote side receives only rendered
+  path/name strings, not an interpolated remote command).
+- **provider-rust cargo test** — 8 unit + 5 doctests passing locally
+  with `cargo test`; `cargo build --release` produces a working
+  `target/release/secretspec-provider-sops` whose `doctor` subcommand
+  reports sops + age versions cleanly.
+- **Untracked `.agents/` directory** — by design per `knowledge.md`'s
+  "compiled source code OUTSIDE provider-rust/ is prohibited" rule.
+  `.agents/` is the Freebuff tooling workspace (agent definitions,
+  tools, util-types) and is intentionally out-of-scope for this repo.
+  Stays untracked; not a gap.
+
+**Tracked — still upstream-limited (no local action possible until upstream lands):**
+
+- `lib.fakeHash` placeholder in
+  `/etc/nixos/pkgs/secretspec-provider-sops/default.nix` requires the
+  `reverb256/secretspec-provider-sops` v0.1.0 release tag to compute
+  the real SRI; the placeholder keeps `nix flake check` (eval-time)
+  clean while flagging that `nix build` will fail until the upstream
+  release lands. Inline TODO comment in the file documents this.
+- `provider-rust/src/secretspec.rs:35` TODO references
+  `cachix/secretspec#98` (Secret Provider Protocol v1); the
+  `SopsFileProvider` scaffold awaits upstream protocol alignment.
+  Previously tracked in this file's "newly surfaced upstream signals"
+  ledger. Reaffirmed unchanged this turn.
+
+**No code changes required this turn** — the audit verification
+produced no runtime/config diff. Production-ready state holds.
+
 ## Phase status as of 2026-07-26
 
 Snapshot of where the migration plan stands across all four phases,
