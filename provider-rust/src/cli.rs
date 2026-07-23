@@ -148,6 +148,9 @@ mod tests {
                 assert_eq!(key, "nvidia_api_key");
                 assert_eq!(format.as_deref(), Some("yaml"));
             }
+            // Exhaustiveness arm — needed once `Subcmd::Doctor` was added;
+            // without this, `cargo check --all-targets` reports E0004.
+            Subcmd::Doctor => panic!("expected Get, got Doctor"),
         }
     }
 
@@ -166,6 +169,8 @@ mod tests {
                 assert_eq!(key, "N8N_API_KEY");
                 assert!(format.is_none());
             }
+            // Exhaustiveness arm — see parse_cli_get for rationale.
+            Subcmd::Doctor => panic!("expected Get, got Doctor"),
         }
     }
 

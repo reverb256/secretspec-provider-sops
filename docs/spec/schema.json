@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secretspec.dev/schema/provider-protocol-v1.json",
+  "title": "Secret Provider Protocol v1",
+  "description": "Wire-format specification for out-of-tree secretspec providers, exchanged as line-delimited JSON over stdio. Derived verbatim from cachix/secretspec#98 (protocol-v1.md). The v1 transport is local stdio (subprocess discovered on $PATH per spec §1); a network transport is explicitly out of scope for v1 per §3.1.",
+  "$comment": "v1.1+ additive-evolution principle (per spec §9): new optional fields, new error kinds, and new capability strings do NOT bump the protocol version. Hosts MUST tolerate unknown fields in plugin responses; plugins MUST tolerate unknown fields in host requests. Each per-shape schema below has additionalProperties:true so unknown fields propagate without breaking deserializers. Capabilities.items is widened to accept any non-empty string (custom capability strings) while keeping the 5 standardized ops as the recommended core set.",
+  "$defs": {
+    "errorKind": {
+      "type": "string",
+      "enum": [
+        "not_found",
+        "auth_failed",
+        "permission_denied",
+        "rate_limited",
+        "unsupported",
+        "unsupported_version",
+        "invalid_request",
+        "internal"
+      ],
+      "$comment": "Closed set per spec §6. Unknown kind values MUST be treated as 'internal' by the host. Note: 'not_found' is for non-value resources (project, profile); missing secret VALUES use `value: null` not `error.not_found` (per spec §5.1 and 5.5)."
+    },
+    "errorEnvelope": {
+      "type": "object",
+      "required": ["ok", "error"],
+      "properties": {
+        "ok": { "const": false },
+        "error": {
+          "type": "object",
+          "required": ["kind", "message"],
+          "properties": {
+            "kind": { "$ref": "#/$defs/errorKind" },
+            "message": { "type": "string" }
+          },
+          "additionalProperties": true,
+          "$comment": "Plugins MAY add additional fields on the error object for diagnostic purposes; the host MUST ignore unknown fields per spec §6."
+        }
+      },
+      "additionalProperties": true,
+      "$comment": "Unified error envelope per spec §6. Carries ok:false plus a single error object. All operations that fail emit this shape on the wire."
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "contains": { "const": "get" },
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "anyOf": [
+          { "enum": ["get", "set", "batch_get", "reflect", "bye"] },
+          { "pattern": "^[a-z][a-z0-9_:.\\-]*$" }
+        ]
+      },
+      "$comment": "get is mandatory per spec §4; all others are optional. items is widened from a strict enum to `anyOf: [standard-op, custom-op-paTTern]` so v1.1+ plugins MAY advertise custom capability strings (per spec §9's additive-evolution principle). The 5 standardized ops are still enumerated as the recommended/core capability set; custom strings must match `^[a-z][a-z0-9_:.\\-]*$` (same shape as URI schemes per spec §1). Plugins emit custom capabilities; hosts MUST forward them as-is in v1+."
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "$comment": "Context values are strings per spec §7. Nested objects are NOT supported in v1. Source: --context flag, SDK builder, or SECRETSPEC_CONTEXT_<KEY> env."
+    },
+    "secretDefinition": {
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "required": { "type": "boolean" },
+        "default": {}
+      },
+      "additionalProperties": true,
+      "$comment": "Mirrors secretspec.toml secret definition per spec §5.4. Unknown fields MUST be ignored by the host; plugins can ship richer metadata over time."
+    },
+    "helloRequest": {
+      "type": "object",
+      "required": ["op", "protocol_version", "uri", "config_file"],
+      "properties": {
+        "op": { "const": "hello" },
+        "protocol_version": {
+          "type": "integer",
+          "minimum": 1,
+          "$comment": "Monotonically increasing integer per spec §9. The host sends its highest supported; the plugin responds with <= that."
+        },
+        "uri": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*://.*",
+          "$comment": "Provider URI scheme bound to plugin binary secretspec-provider-<scheme> per spec §1."
+        },
+        "config_file": {
+          "type": ["string", "null"],
+          "$comment": "Absolute path to secretspec.toml, or null when host resolved secrets without an on-disk config (purely programmatic SDK caller) per spec §4."
+        },
+        "context": { "$ref": "#/$defs/context" }
+      },
+      "additionalProperties": true
+    },
+    "helloResponse": {
+      "type": "object",
+      "required": ["ok", "protocol_version", "capabilities"],
+      "properties": {
+        "ok": { "const": true },
+        "protocol_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1,
+          "$comment": "For v1 conformance, MUST be 1. Backward-compatible changes do not bump the version per spec §9."
+        },
+        "name": {
+          "type": "string",
+          "$comment": "For debugging/telemetry per spec §4. NOT mandated for conformance."
+        },
+        "version": {
+          "type": "string",
+          "$comment": "Per spec §4 prose, both `name` AND `version` are NOT mandated for protocol compliance. Optional; absent in the simplest v1 example but available for plugins that want to advertise their build identifier. Forward-compat per spec §9: additive optional fields never bump the protocol version."
+        },
+        "capabilities": { "$ref": "#/$defs/capabilities" }
+      },
+      "additionalProperties": true
+    },
+    "getRequest": {
+      "type": "object",
+      "required": ["op", "project", "key", "profile"],
+      "properties": {
+        "op": { "const": "get" },
+        "project": { "type": "string" },
+        "key": { "type": "string" },
+        "profile": { "type": "string" }
+      },
+      "additionalProperties": true,
+      "$comment": "`profile` is mandatory per spec §5.1 example shape — the spec example is `{ op: get, project, key, profile }` with all four fields present. v1 hosts MUST send it; the schema treats it as required so undocumented no-profile calls would be rejected at validation time."
+    },
+    "getResponse": {
+      "type": "object",
+      "required": ["ok", "value"],
+      "properties": {
+        "ok": { "const": true },
+        "value": {
+          "type": ["string", "null"],
+          "$comment": "Hit = string. Miss = null. Miss MUST be reported as value:null (not error.not_found) per spec §5.1."
+        }
+      },
+      "additionalProperties": true
+    },
+    "setRequest": {
+      "type": "object",
+      "required": ["op", "project", "key", "value", "profile"],
+      "properties": {
+        "op": { "const": "set" },
+        "project": { "type": "string" },
+        "key": { "type": "string" },
+        "value": {
+          "type": "string",
+          "$comment": "Spec examples show string values. Tightly typed as string for v1; widen to JSON-compatible when needed."
+        },
+        "profile": { "type": "string" }
+      },
+      "additionalProperties": true,
+      "$comment": "Only callable if the plugin advertised the `set` capability per spec §5.2. `profile` mandatory per the spec example shape."
+    },
+    "setResponse": {
+      "type": "object",
+      "required": ["ok"],
+      "properties": {
+        "ok": { "const": true }
+      },
+      "additionalProperties": true
+    },
+    "batchGetRequest": {
+      "type": "object",
+      "required": ["op", "project", "profile", "keys"],
+      "properties": {
+        "op": { "const": "batch_get" },
+        "project": { "type": "string" },
+        "profile": { "type": "string" },
+        "keys": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "$comment": "Empty array not meaningful; one or more keys required."
+        }
+      },
+      "additionalProperties": true,
+      "$comment": "Only callable if the plugin advertised the `batch_get` capability per spec §5.3. `profile` mandatory per the spec example shape (`{ op, project, profile, keys }`). Spec ordering: project, profile, keys."
+    },
+    "batchGetResponse": {
+      "type": "object",
+      "required": ["ok", "values"],
+      "properties": {
+        "ok": { "const": true },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "null"],
+            "$comment": "Each key resolves to a value (hit) or null (miss). Partial failure surfaces per-key null; only report a top-level error if NO values could be fetched at all per spec §5.3."
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "reflectRequest": {
+      "type": "object",
+      "required": ["op", "project"],
+      "properties": {
+        "op": { "const": "reflect" },
+        "project": { "type": "string" }
+      },
+      "additionalProperties": true,
+      "$comment": "Only callable if the plugin advertised the `reflect` capability per spec §5.4. Used by secretspec import. Asymmetric with get/set/batch_get: NO `profile` field on reflect per spec §5.4 example."
+    },
+    "reflectResponse": {
+      "type": "object",
+      "required": ["ok", "secrets"],
+      "properties": {
+        "ok": { "const": true },
+        "secrets": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/secretDefinition" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "byeRequest": {
+      "type": "object",
+      "required": ["op"],
+      "properties": {
+        "op": { "const": "bye" }
+      },
+      "additionalProperties": true,
+      "$comment": "Optional per spec §5.5. Signals graceful shutdown; host MAY send bye before closing stdin."
+    },
+    "byeResponse": {
+      "type": "object",
+      "required": ["ok"],
+      "properties": {
+        "ok": { "const": true }
+      },
+      "additionalProperties": true
+    },
+    "request": {
+      "oneOf": [
+        { "$ref": "#/$defs/helloRequest" },
+        { "$ref": "#/$defs/getRequest" },
+        { "$ref": "#/$defs/setRequest" },
+        { "$ref": "#/$defs/batchGetRequest" },
+        { "$ref": "#/$defs/reflectRequest" },
+        { "$ref": "#/$defs/byeRequest" }
+      ],
+      "$comment": "Polymorphic request envelope. Discriminator is the op field; each variant adds its own required fields. Top-level validator picks one variant per request."
+    },
+    "response": {
+      "oneOf": [
+        { "$ref": "#/$defs/helloResponse" },
+        { "$ref": "#/$defs/getResponse" },
+        { "$ref": "#/$defs/setResponse" },
+        { "$ref": "#/$defs/batchGetResponse" },
+        { "$ref": "#/$defs/reflectResponse" },
+        { "$ref": "#/$defs/byeResponse" },
+        { "$ref": "#/$defs/errorEnvelope" }
+      ],
+      "$comment": "Polymorphic response envelope. Successful responses carry ok:true with operation-specific body; failures carry ok:false + uniform errorEnvelope per spec §6."
+    }
+  }
+}
