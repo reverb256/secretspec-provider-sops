@@ -12,7 +12,7 @@
 pub mod provider;
 pub mod secretspec;
 
-pub use provider::{DoctorReport, SopsProvider, parse_dotenv_line, strip_inline_comment};
+pub use provider::{parse_dotenv_line, strip_inline_comment, DoctorReport, SopsProvider};
 pub use secretspec::SopsFileProvider;
 
 use std::path::Path;

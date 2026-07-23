@@ -78,10 +78,7 @@ impl SopsFileProvider {
     /// upstream `Provider` trait shape from cachix/secretspec#98
     /// will surface a key parameter; until that lands, callers that
     /// need per-key bytes should use `resolve_text` and `.into_bytes()`.
-    pub async fn resolve_bytes(
-        &self,
-        format_hint: Option<&str>,
-    ) -> Result<Vec<u8>, SopsError> {
+    pub async fn resolve_bytes(&self, format_hint: Option<&str>) -> Result<Vec<u8>, SopsError> {
         // The empty-string key is ignored by `extract_bin` (whole-file
         // mode; see module-level docs for why we don't surface a key
         // parameter here yet).

@@ -83,7 +83,9 @@ async fn extract_yaml_key_via_sops_round_trip() {
         .arg("-o")
         .arg(&age_keyfile)
         .output()
-        .expect("age-keygen executable lookup failed; install with `nix profile install nixpkgs#age`");
+        .expect(
+            "age-keygen executable lookup failed; install with `nix profile install nixpkgs#age`",
+        );
     assert!(age_out.status.success(), "age-keygen exited non-zero");
     let pubkey = String::from_utf8_lossy(&age_out.stderr)
         .lines()
