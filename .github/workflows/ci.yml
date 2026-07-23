@@ -35,7 +35,7 @@ jobs:
       # (rustfmt + clippy); the dtolnay/rust-toolchain action picks it up
       # automatically — no separate `rustup component add` step needed.
       - name: Install Rust per rust-toolchain.toml
-        uses: dtolnay/rust-toolchain@1.78
+        uses: dtolnay/rust-toolchain@master
 
       # Cargo target cache keyed on provider-rust/Cargo.lock hashing —
       # ~70% faster rebuilds on subsequent pushes to the same ref.
