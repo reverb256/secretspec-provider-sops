@@ -89,7 +89,7 @@ async fn extract_yaml_key_via_sops_round_trip() {
     assert!(age_out.status.success(), "age-keygen exited non-zero");
     let pubkey = String::from_utf8_lossy(&age_out.stderr)
         .lines()
-        .find_map(|l| parse_age_pubkey_line(l))
+        .find_map(parse_age_pubkey_line)
         .expect("no `age1…` public key found in age-keygen stderr");
 
     // Plaintext YAML.
@@ -150,7 +150,7 @@ async fn extract_missing_yaml_key_returns_key_not_found() {
     assert!(age_out.status.success(), "age-keygen exited non-zero");
     let pubkey = String::from_utf8_lossy(&age_out.stderr)
         .lines()
-        .find_map(|l| parse_age_pubkey_line(l))
+        .find_map(parse_age_pubkey_line)
         .expect("no `age1…` public key found in age-keygen stderr");
 
     std::fs::write(&secrets_yaml, "real_key: present\n").expect("write plaintext");
@@ -209,7 +209,7 @@ async fn extract_dotenv_key_via_sops_round_trip() {
     assert!(age_out.status.success(), "age-keygen exited non-zero");
     let pubkey = String::from_utf8_lossy(&age_out.stderr)
         .lines()
-        .find_map(|l| parse_age_pubkey_line(l))
+        .find_map(parse_age_pubkey_line)
         .expect("public key in stderr");
 
     // Plaintext dotenv. Uses `export` + quoted + comment forms so

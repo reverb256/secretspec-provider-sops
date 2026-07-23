@@ -264,7 +264,10 @@ mod tests {
             Request::Hello(h) => {
                 assert_eq!(h.protocol_version, 1);
                 assert_eq!(h.uri, "opproxy://vault/Production?reason=build");
-                assert_eq!(h.config_file.as_deref(), Some("/abs/path/to/secretspec.toml"));
+                assert_eq!(
+                    h.config_file.as_deref(),
+                    Some("/abs/path/to/secretspec.toml")
+                );
                 assert_eq!(
                     h.context.get("reason").map(|s| s.as_str()),
                     Some("building api image")
@@ -557,9 +560,6 @@ mod tests {
             s.contains(needle_kind),
             "missing kind:not_found tag in: {s}"
         );
-        assert!(
-            s.contains(needle_msg),
-            "missing message field in: {s}"
-        );
+        assert!(s.contains(needle_msg), "missing message field in: {s}");
     }
 }

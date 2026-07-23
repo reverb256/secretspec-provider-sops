@@ -142,10 +142,7 @@ impl SopsUri {
         let mut format = None;
         let mut extra = Vec::new();
         for pair in query.split('&').filter(|p| !p.is_empty()) {
-            let (k, v) = pair
-                .split_once('=')
-                .map(|(k, v)| (k, v))
-                .unwrap_or((pair, ""));
+            let (k, v) = pair.split_once('=').unwrap_or((pair, ""));
             match k {
                 "key" => key = Some(v.to_string()),
                 // Both `f` (compact, matches `migration-matrix.md` examples)
@@ -349,10 +346,7 @@ mod tests {
         // The ONLY way to get the unredacted form. Callers committing
         // the result to a String that may end up in a log are bugs.
         let f = FieldSpec::new("age_key", "vault://secret/data/age_key");
-        assert_eq!(
-            f.uri_redacted(),
-            "vault://secret/data/age_key"
-        );
+        assert_eq!(f.uri_redacted(), "vault://secret/data/age_key");
     }
 
     #[test]

@@ -28,13 +28,11 @@
 //! (v0.12 nixpkgs pin, v0.16 upstream stable).
 
 pub mod credentials;
-pub mod provider;
 pub mod protocol;
+pub mod provider;
 pub mod uri;
 
-pub use credentials::{
-    CredentialValue, CredentialsChain, CredentialsError, ResolverFn,
-};
+pub use credentials::{CredentialValue, CredentialsChain, CredentialsError, ResolverFn};
 pub use provider::{parse_dotenv_line, strip_inline_comment, DoctorReport, SopsProvider};
 pub use uri::{FieldSpec, SopsUri, UriError};
 

@@ -88,7 +88,11 @@ pub enum CredentialsError {
 impl std::fmt::Display for CredentialsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CredentialsError::ResolveFailed { name, source_uri, cause } => {
+            CredentialsError::ResolveFailed {
+                name,
+                source_uri,
+                cause,
+            } => {
                 write!(
                     f,
                     "credential `{name}` (uri=`{source_uri}`) failed: {cause}"
@@ -254,7 +258,10 @@ mod tests {
             source_uri: "vault://vault/data/age_key".into(),
         };
         let dbg = format!("{cv:?}");
-        assert!(!dbg.contains("SUPER-SECRET"), "secret must not appear in Debug: {dbg}");
+        assert!(
+            !dbg.contains("SUPER-SECRET"),
+            "secret must not appear in Debug: {dbg}"
+        );
         assert!(dbg.contains("***"), "Debug should mask with ***: {dbg}");
         // The URI is OK to surface.
         assert!(dbg.contains("vault://vault/data/age_key"));

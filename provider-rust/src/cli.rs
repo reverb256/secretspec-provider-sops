@@ -73,14 +73,10 @@ async fn run_get(file_arg: &str, key: &str, format_hint: Option<&str>) -> ExitCo
     // Both arms produce `(String, Option<String>)` so the joined tuple
     // type is uniform; the `--format` flag takes precedence over a
     // `?f=` query param (we OR the flag's owned copy in last).
-    let (file_path, fmt): (String, Option<String>) =
-        match SopsUri::from_str(file_arg) {
-            Ok(u) => (
-                u.file,
-                format_hint.map(String::from).or(u.format),
-            ),
-            Err(_) => (file_arg.to_string(), format_hint.map(String::from)),
-        };
+    let (file_path, fmt): (String, Option<String>) = match SopsUri::from_str(file_arg) {
+        Ok(u) => (u.file, format_hint.map(String::from).or(u.format)),
+        Err(_) => (file_arg.to_string(), format_hint.map(String::from)),
+    };
     match SopsProvider::new()
         .get_bytes(&file_path, key, fmt.as_deref())
         .await
@@ -182,19 +178,23 @@ mod tests {
 
     #[test]
     fn parse_cli_no_subcommand_yields_help_error() {
-        // With `arg_required_else_help = true`, no subcommand → clap
-        // emits DisplayHelp (printed to stderr by clap's default exit
-        // handler, then exits 2). try_parse_from returns the error so
-        // we can assert the kind without consuming the exit.
+        // With `arg_required_else_help = true`, no subcommand → clap 4.x
+        // emits DisplayHelpOnMissingArgumentOrSubcommand (printed to stderr
+        // by clap's default exit handler, then exits 2). try_parse_from
+        // returns the error so we can assert the kind without consuming the exit.
         let res = Cli::try_parse_from(["secretspec-provider-sops"]);
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::DisplayHelp);
+        assert_eq!(
+            res.unwrap_err().kind(),
+            ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
+        );
     }
 
     #[test]
     fn parse_cli_help_flag_short_circuits_before_subcommand() {
         // `--help` short-circuits regardless of subcommand; clap emits
-        // DisplayHelp just like the no-subcommand case.
+        // DisplayHelp (not DisplayHelpOnMissingArgumentOrSubcommand)
+        // because the user explicitly requested help.
         let res = Cli::try_parse_from(["secretspec-provider-sops", "--help"]);
         assert!(res.is_err());
         assert_eq!(res.unwrap_err().kind(), ErrorKind::DisplayHelp);

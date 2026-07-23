@@ -52,11 +52,8 @@ async fn hello_advertises_v1_capabilities() {
     assert_eq!(v["protocol_version"], serde_json::Value::from(1u32));
     assert_eq!(v["name"], serde_json::Value::from("sops"));
 
-    let caps = v["capabilities"]
-        .as_array()
-        .expect("capabilities is array");
-    let cap_set: std::collections::HashSet<&str> =
-        caps.iter().filter_map(|c| c.as_str()).collect();
+    let caps = v["capabilities"].as_array().expect("capabilities is array");
+    let cap_set: std::collections::HashSet<&str> = caps.iter().filter_map(|c| c.as_str()).collect();
     for required in ["get", "set", "batch_get", "reflect", "bye"] {
         assert!(
             cap_set.contains(required),
@@ -84,7 +81,10 @@ async fn get_returns_null_on_missing_key_per_spec() {
 
     // Skip past the optional Hello by sending one first.
     let hello = r#"{"op":"hello","protocol_version":1,"uri":"sops://./secrets.yaml","config_file":"/tmp/secretspec.toml","context":{}}"#;
-    stdin.write_all(hello.as_bytes()).await.expect("hello write");
+    stdin
+        .write_all(hello.as_bytes())
+        .await
+        .expect("hello write");
     stdin.write_all(b"\n").await.expect("hello nl");
     let _ = lines
         .next_line()
@@ -94,14 +94,13 @@ async fn get_returns_null_on_missing_key_per_spec() {
 
     // Get request for a key that we expect Phase 1 to NOT resolve.
     let get_req = r#"{"op":"get","project":"homelab","key":"nvidia_api_key","profile":"default"}"#;
-    stdin.write_all(get_req.as_bytes()).await.expect("get write");
+    stdin
+        .write_all(get_req.as_bytes())
+        .await
+        .expect("get write");
     stdin.write_all(b"\n").await.expect("get nl");
 
-    let resp_line = lines
-        .next_line()
-        .await
-        .expect("get resp")
-        .expect("non-eof");
+    let resp_line = lines.next_line().await.expect("get resp").expect("non-eof");
     let v: serde_json::Value = serde_json::from_str(&resp_line).expect("parse get resp");
     assert_eq!(v["ok"], serde_json::Value::Bool(true));
     // CRITICAL: per cachix/secretspec#98 section 5.1, missing key MUST
@@ -128,12 +127,11 @@ async fn bye_returns_ok() {
     let stdout = child.stdout.take().expect("stdout pipe");
     let mut lines = BufReader::new(stdout).lines();
 
-    stdin.write_all(b"{\"op\":\"bye\"}\n").await.expect("bye write");
-    let resp_line = lines
-        .next_line()
+    stdin
+        .write_all(b"{\"op\":\"bye\"}\n")
         .await
-        .expect("bye resp")
-        .expect("non-eof");
+        .expect("bye write");
+    let resp_line = lines.next_line().await.expect("bye resp").expect("non-eof");
     let v: serde_json::Value = serde_json::from_str(&resp_line).expect("bye parse");
     assert_eq!(v["ok"], serde_json::Value::Bool(true));
 

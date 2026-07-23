@@ -18,8 +18,8 @@ use secretspec_provider_sops::protocol::{
     error_kind, HelloResponse, ReflectResponse, Response, SecretSchema,
 };
 use secretspec_provider_sops::provider::SopsProvider;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::io::{stdin, stdout};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
@@ -52,7 +52,10 @@ async fn dispatch(req: secretspec_provider_sops::protocol::Request) -> Response 
             if h.protocol_version != 1 {
                 Response::error(
                     error_kind::UNSUPPORTED_VERSION,
-                    format!("protocol_version {} not supported (plugin supports 1)", h.protocol_version),
+                    format!(
+                        "protocol_version {} not supported (plugin supports 1)",
+                        h.protocol_version
+                    ),
                 )
             } else {
                 Response::Hello(HelloResponse::v1())
@@ -84,25 +87,25 @@ async fn handle_get(g: secretspec_provider_sops::protocol::SecretRequest) -> Res
             value: Some(value),
         }),
         Err(e) => {
-        // Spec §5.1 mandates `value: null` on the wire for any
-        // miss/error so the host sees a clean envelope. The `tracing::warn!`
-        // here records the real cause in the audit log (target
-        // `secretspec_provider_sops::audit`) so operators can distinguish
-        // a true key miss from a `sops`-binary-missing or decryption-failed
-        // event after the fact. Wire-protocol observers see `null`;
-        // audit observers see the cause.
-        tracing::warn!(
-            target: "secretspec_provider_sops::audit",
-            error = %e,
-            project = %g.project,
-            key = %g.key,
-            "resolve failed; returning null per spec §5.1"
-        );
-        Response::Get(secretspec_provider_sops::protocol::GetResponse {
-            ok: true,
-            value: None,
-        })
-    }
+            // Spec §5.1 mandates `value: null` on the wire for any
+            // miss/error so the host sees a clean envelope. The `tracing::warn!`
+            // here records the real cause in the audit log (target
+            // `secretspec_provider_sops::audit`) so operators can distinguish
+            // a true key miss from a `sops`-binary-missing or decryption-failed
+            // event after the fact. Wire-protocol observers see `null`;
+            // audit observers see the cause.
+            tracing::warn!(
+                target: "secretspec_provider_sops::audit",
+                error = %e,
+                project = %g.project,
+                key = %g.key,
+                "resolve failed; returning null per spec §5.1"
+            );
+            Response::Get(secretspec_provider_sops::protocol::GetResponse {
+                ok: true,
+                value: None,
+            })
+        }
     }
 }
 
@@ -125,10 +128,7 @@ async fn handle_batch_get(b: secretspec_provider_sops::protocol::BatchGetRequest
     for k in b.keys {
         values.insert(k, None);
     }
-    Response::BatchGet(secretspec_provider_sops::protocol::BatchGetResponse {
-        ok: true,
-        values,
-    })
+    Response::BatchGet(secretspec_provider_sops::protocol::BatchGetResponse { ok: true, values })
 }
 
 fn handle_reflect(_r: secretspec_provider_sops::protocol::ReflectRequest) -> Response {
@@ -138,7 +138,11 @@ fn handle_reflect(_r: secretspec_provider_sops::protocol::ReflectRequest) -> Res
     // per-secret metadata.
     let mut secrets: BTreeMap<String, SecretSchema> = BTreeMap::new();
     // Single bootstrap entry — Phase 2 will widen to per-project schemas.
-    secrets.insert("__bootstrap__".into(), SecretSchema { ty: "string".into() });
+    secrets.insert(
+        "__bootstrap__".into(),
+        SecretSchema {
+            ty: "string".into(),
+        },
+    );
     Response::Reflect(ReflectResponse { ok: true, secrets })
 }
-
