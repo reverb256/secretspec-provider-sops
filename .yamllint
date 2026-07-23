@@ -1,0 +1,17 @@
+---
+# yamllint config — repo root
+#
+# Default rules are enabled for: document-start, empty-lines,
+# indentation, key-duplicates, line-length, new-line-at-end-of-file,
+# new-lines, trailing-spaces, truthy.
+#
+# We override line-length (200 chars per logical line — GitHub Actions
+# workflow files routinely have long URLs and step names) and bump
+# truthy from "warning" to "error" so any future regression of the
+# quoted-`"on":` form (or other YAML truthy keys) is caught at CI.
+
+rules:
+  line-length:
+    max: 200
+  truthy:
+    level: error

@@ -1,5 +1,9 @@
 # Homelab SecretSpec Migration
 
+[![CI](https://github.com/reverb256/secretspec-provider-sops/actions/workflows/ci.yml/badge.svg)](https://github.com/reverb256/secretspec-provider-sops/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/secretspec-provider-sops.svg)](https://crates.io/crates/secretspec-provider-sops)
+[![license](https://img.shields.io/crates/l/secretspec-provider-sops.svg)](https://github.com/reverb256/secretspec-provider-sops/blob/main/provider-rust/Cargo.toml)
+
 Self-hosted NixOS homelab's migration from `sops-nix` to `SecretSpec`, with
 the goal of building + upstreaming a SOPS provider to cachix/secretspec.
 

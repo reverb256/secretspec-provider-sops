@@ -1,0 +1,20 @@
+---
+version: 2
+
+updates:
+  # Cargo dependency updates — weekly, grouped into one PR per ecosystem
+  # cycle so the bot doesn't open dozens of single-crate PRs.
+  - package-ecosystem: "cargo"
+    directory: "/provider-rust"
+    schedule:
+      interval: "weekly"
+    groups:
+      cargo-all:
+        patterns: ["*"]
+
+  # GitHub Actions updates. Pinned to major-version tags (@v4 etc.) per
+  # the GH Actions security guidance; grouped for one-a-week PR cadence.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

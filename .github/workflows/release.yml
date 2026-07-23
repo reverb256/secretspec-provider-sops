@@ -1,0 +1,57 @@
+---
+name: release
+
+# cargo publish to crates.io — fires on tag push matching v*. The publish
+# is gated by the `crates-io` GitHub Environment so the
+# $CARGO_REGISTRY_TOKEN secret is only reachable from this workflow
+# after explicit human approval in the env's allowlist (defense-in-depth
+# against malicious PRs from forks, which can't reach protected env secrets).
+"on":
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+# Never cancel an in-flight release — a publish mid-cancel can leave the
+# registry in a half-published state. First-wins; later tag pushes queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish-crate:
+    name: cargo publish to crates.io
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    environment:
+      name: crates-io
+      url: https://crates.io/crates/secretspec-provider-sops
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust per rust-toolchain.toml
+        uses: dtolnay/rust-toolchain@1.78
+
+      - name: Rust Cache (Swatinem/rust-cache, keyed on provider-rust/Cargo.lock)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: provider-rust -> target
+
+      # Quick pre-publish smoke: confirm tests still pass on the tagged
+      # SHA even though ci.yml already validated the same commit on main.
+      # Cheap insurance against post-merge changes between ci.green and tag push.
+      - name: cargo test
+        working-directory: provider-rust
+        run: cargo test
+
+      # cargo publish with $CARGO_REGISTRY_TOKEN pulled from the crates-io
+      # protected environment. `--no-verify` skips the registry's own
+      # package build (CI has already validated the package contents).
+      - name: cargo publish to crates.io
+        working-directory: provider-rust
+        run: cargo publish --token "${{ secrets.CARGO_REGISTRY_TOKEN }}" --no-verify

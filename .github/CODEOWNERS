@@ -1,0 +1,6 @@
+# CODEOWNERS — review routing for github.com/reverb256/secretspec-provider-sops
+# Single-maintainer repo: all paths route review to @reverb256.
+# Add more granular paths (e.g. provider-rust/ -> @rust-crate-owner) when
+# collaborators join.
+
+* @reverb256
