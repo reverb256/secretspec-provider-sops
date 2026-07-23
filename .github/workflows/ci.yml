@@ -80,11 +80,16 @@ jobs:
       - name: bootstrap-dev.sh (populate .env.secrets from template)
         run: ./scripts/bootstrap-dev.sh --force
 
+      # secretspec profile gate: coupled to .env.secrets populated by bootstrap-dev.sh above;
+      # validates default → development → production inheritance chain end-to-end.
       - name: secretspec check --profile default
         run: "$HOME/.local/bin/secretspec" check --profile default -f ./secretspec.toml
 
       - name: secretspec check --profile development
-        run: "$HOME/.local/bin/secretspec" check --profile development
+        run: "$HOME/.local/bin/secretspec" check --profile development -f ./secretspec.toml
+
+      - name: secretspec check --profile production
+        run: "$HOME/.local/bin/secretspec" check --profile production -f ./secretspec.toml
 
       - name: provider-rust binary smoke (doctor)
         working-directory: provider-rust
