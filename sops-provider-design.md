@@ -6,6 +6,12 @@ cachix/secretspec. It encodes Domen Kozar's seven accept-criteria (CONTEXT.md �
 "Build Intent") and the rationale the community PR #58 author has not yet
 addressed.
 
+> **Schema status (2026-07-26):** the inline-table `credentials = { … }` shape
+> shown throughout this doc is no longer illustrative — it matches SecretSpec's
+> v0.15+ documented provider-config trait. `vault`, `akv`, and `bws` upstream
+> all use the same `(uri, credentials)` shape; v0.16 is the latest stable
+> upstream release (2026-07-17) and is the target version for our crate.
+
 ## Goal
 
 Replace `sops-nix`'s `sops.secrets.<name>.path` style with SecretSpec resolving
@@ -62,17 +68,15 @@ tests/
 **Domen's Jul 17 ask:** decryption keys resolved through SecretSpec's
 credential-chaining, not raw URI params.
 
-**Proposed TOML shape for the provider declaration (illustrative — the
-actual `[providers.<name>]` config schema is not fully documented in
-CONTEXT.md; confirm against `secretspec`'s provider config trait before
-locking this in):**
+**Provider-declaration TOML (shape confirmed for v0.15+; v0.16 is the
+target — `vault`, `akv`, `bws` use the same `uri + credentials` shape):**
 
 ```toml
 [providers.sops]
 uri = "sops://./secrets.yaml"
 credentials = {
   # age_key is sourced through the astral-key vault-emulating endpoint
-  # once astral_key Phase 1 ships (CONTEXT.md "astral-key Integration").
+  # once astral-key Phase 1 ships (CONTEXT.md "astral-key Integration").
   # Until then, fall back to a local keyring-stored age recipient.
   age_key               = "vault://http://astral-key:8080/v1/secret/data/age_key?auth=approle",
   aws_secret_access_key = "onepassword://Homelab/item/aws-deploy",

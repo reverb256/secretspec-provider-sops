@@ -1,11 +1,20 @@
 # Project knowledge
 
-This is a **research and planning workspace** for migrating from `sops-nix` to `SecretSpec` (https://secretspec.dev). It is **not a software project** — there is no code to build, run, or test. The reason the repo exists at all is so it can be handed to a top-tier model to continue the migration planning.
+This is a **research and planning workspace** for migrating from `sops-nix` to `SecretSpec` (https://secretspec.dev). The directory is now a real git repo with validated Phase 1 deliverables + design docs. Reason for the repo: to capture the migration plan, dogfood on real secrets, and upstream a SOPS provider to cachix/secretspec.
 
 ## Quickstart
-- Setup: none (docs-only directory)
+- Setup: `nix profile install 'nixpkgs#secretspec'` (validated; v0.12.0 in nixpkgs)
+- Validate Phase 1: `secretspec check --profile development` (parses cleanly; full resolution requires a populated `.env.secrets`)
 - Dev: edit `CONTEXT.md` to capture new research; update this file when the migration plan changes materially
 - Test: not applicable
+
+## Status snapshot (2026-07-26)
+- SecretSpec upstream stable: **v0.16.0** (2026-07-17); nixpkgs pin: v0.12.0
+- cachix/secretspec PR #58: OPEN, DRAFT, author `euphemism` unresponsive since Jul 1 — Domen's Jul 17 rework request for provider credentials still unaddressed
+- cachix/secretspec issue #65 (NixOS module): open; community workaround (`systemd-creds` + SSH pipe) documented in `CONTEXT.md`
+- cachix/secretspec issue #41 (systemd-creds provider): open
+- cachix/devenv issue #2363 (per-profile secretspec config): open; `SECRETSPEC_PROFILE` env var is the official workaround (`https://devenv.sh/integrations/secretspec/`)
+- DOFLD `astral-key` endpoint (this repo's `astral-key-endpoint-spec.md`): upstream issue #16 still open
 
 ## Architecture
 

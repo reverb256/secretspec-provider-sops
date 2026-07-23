@@ -9,8 +9,10 @@ the goal of building + upstreaming a SOPS provider to cachix/secretspec.
 |------|---------|
 | `CONTEXT.md` | Single source of truth: spec format, nixpkgs status, NixOS integration, PR #58 status, migration plan, blockers, key links |
 | `knowledge.md` | High-signal context for fresh Freebuff sessions — what's true, what's NOT true, what to avoid |
-| **`secretspec.toml`** | **Phase 1 deliverable**: every existing secret declared via SecretSpec, with profiles for `default`, `production`, `development` |
-| **`sops-provider-design.md`** | **Tier 3 design**: architecture for the upstream SOPS provider, encoding Domen's seven accept-criteria |
+| **`secretspec.toml`** | **Phase 1 deliverable**: every existing secret declared via SecretSpec, with profiles for `default`, `production`, `development` (validated against `secretspec` v0.12.0 installed via nixpkgs) |
+| **`sops-provider-design.md`** | **Tier 3 design**: architecture for the upstream SOPS provider, encoding Domen's seven accept-criteria; `(uri, credentials)` shape now confirmed for v0.15+ |
+| **`migration-matrix.md`** | **Phase 2/3 prep**: per-secret matrix mapping each secret through Phase 1 env/dotenv → Phase 2 `sops://` → Phase 3 final provider; 25 declared, 24 pending declaration |
+| **`astral-key-endpoint-spec.md`** | **Phase 3 hand-off**: Vault KV v2 compatible API spec (endpoint shape, AppRole emulation, response codes) for the upstream astral-key team's reference |
 | `.gitignore` | Hygiene only — no build config |
 | `README.md` | This file |
 
