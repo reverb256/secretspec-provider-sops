@@ -590,11 +590,11 @@ on 2026-07-23 against the live source tree + local `cargo test` + local
   reasoning (`${service_name}-${key}` are LOCAL shell vars that
   intentionally expand on this side before `ssh` transmits the
   rendered command; the remote side receives only rendered
-  path/name strings, not an interpolated remote command).
-- **provider-rust cargo test** — 8 unit + 5 doctests passing locally
-  with `cargo test`; `cargo build --release` produces a working
-  `target/release/secretspec-provider-sops` whose `doctor` subcommand
-  reports sops + age versions cleanly.
+  path/name strings, not an interpolated remote command).- **provider-rust cargo test** — **36 tests total** per `cargo test`
+  (lib 16 + integration 8 + cli_smoke 6 + doctest 6; per `knowledge.md`
+  Status snapshot as canonical); `cargo build --release` produces a
+  working `target/release/secretspec-provider-sops` whose `doctor`
+  subcommand reports sops + age versions cleanly.
 - **Untracked `.agents/` directory** — by design per `knowledge.md`'s
   "compiled source code OUTSIDE provider-rust/ is prohibited" rule.
   `.agents/` is the Freebuff tooling workspace (agent definitions,
