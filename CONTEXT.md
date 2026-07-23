@@ -695,10 +695,18 @@ succeeds on the cluster hosts) by:
 3. Atomically committing both `rev` and `hash` updates. (Requires
    `nix-prefetch-github` to be installable on the homelab first.)
 
-**Operator-facing actions (preserved):**
-- `git push` to origin/main still blocked by branch protection.
-- The fallback path is a single atomic commit (rev bump + hash swap);
-  it does NOT require waiting for v0.1.0 upstream.
+**Prerequisite:** `nix-prefetch-github` is not currently on PATH locally
+(cluster hosts + secretspec CI runner image both off-PATH per this
+audit's precondition check). Install Nix first so the fallback-path
+commands below resolve.
+
+**Recommended next step:** apply the documented fallback (bump `rev`
+to a known-good commit SHA pulled from `reverb256/secretspec-provider-sops`
+`origin/main`, then run `nix-prefetch-github --owner reverb256 --repo
+secretspec-provider-sops --rev <SHA>` to compute the real SRI), since
+the v0.1.0 tag precondition is outside our local control to satisfy.
+This achieves the same operational outcome (real SRI in place of
+`lib.fakeHash`) without waiting for upstream.
 
 **No code changes this turn** — the literal instruction was gated on
 the v0.1.0 tag's publication (not met). Doc-only ledger entry
