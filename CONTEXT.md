@@ -338,6 +338,30 @@ We are building a SOPS provider from scratch, following Domen's architecture req
 - **sops-nix** (Mic92) — the current standard for NixOS secrets. NO need to replace immediately. SecretSpec is additive.
 - **varlock** — newer project, also focuses on secret injection. Adds redaction from console/log output. Mentioned in comments as complementary.
 
+### Drafted upstream PR body
+
+The full draft body for the eventual PR to cachix/secretspec lives at
+[`cachix-pr-body.md`](./cachix-pr-body.md). Submission is **gated on
+cachix/secretspec#98 [Secret Provider Protocol v1](https://github.com/cachix/secretspec/pull/98)**
+protocol alignment (currently OPEN, not DRAFT, with 7 comments tracked
+in this file's "newly surfaced upstream signals" ledger). When #98
+lands and the upstream `Provider` trait shape stabilizes:
+
+1. Refactor `provider-rust/src/secretspec.rs:35` `SopsFileProvider`
+   scaffold to match the upstream trait (a one-line refactor per
+   `sops-provider-design.md`'s Phase 3.5 plan).
+2. Open the PR against cachix/secretspec from a fork of
+   `reverb256/secretspec-provider-sops` using the draft body verbatim.
+3. Coordinate supersede-vs-coexist with cachix/secretspec#58 (euphemism)
+   per the draft's open-question framing.
+
+Cross-references in this repo:
+`CONTEXT.md` § "Build Intent: SOPS Provider" (this section, the
+architectural rationale), `sops-provider-design.md` (full design doc
+with the seven accept-criteria mapping), `migration-matrix.md` (per-secret
+sops:// routing for the 49 declared homelab keys), and `.github/workflows/ci.yml`
+(CI-enforced end-to-end SOPS bridge round-trip).
+
 ## astral-key Integration
 
 **astral-key** (github.com/reverb256/astral-key) is a Web3/FIDO2/Passkey authentication microservice with Vaultwarden backend (Rust/Axum, NixOS module). SecretSpec integration points:
