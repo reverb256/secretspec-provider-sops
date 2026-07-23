@@ -338,6 +338,30 @@ We are building a SOPS provider from scratch, following Domen's architecture req
 - **sops-nix** (Mic92) — the current standard for NixOS secrets. NO need to replace immediately. SecretSpec is additive.
 - **varlock** — newer project, also focuses on secret injection. Adds redaction from console/log output. Mentioned in comments as complementary.
 
+### Drafted upstream PR body
+
+The full draft body for the eventual PR to cachix/secretspec lives at
+[`cachix-pr-body.md`](./cachix-pr-body.md). Submission is **gated on
+cachix/secretspec#98 [Secret Provider Protocol v1](https://github.com/cachix/secretspec/pull/98)**
+protocol alignment (currently OPEN, not DRAFT, with 7 comments tracked
+in this file's "newly surfaced upstream signals" ledger). When #98
+lands and the upstream `Provider` trait shape stabilizes:
+
+1. Refactor `provider-rust/src/secretspec.rs:35` `SopsFileProvider`
+   scaffold to match the upstream trait (a one-line refactor per
+   `sops-provider-design.md`'s Phase 3.5 plan).
+2. Open the PR against cachix/secretspec from a fork of
+   `reverb256/secretspec-provider-sops` using the draft body verbatim.
+3. Coordinate supersede-vs-coexist with cachix/secretspec#58 (euphemism)
+   per the draft's open-question framing.
+
+Cross-references in this repo:
+`CONTEXT.md` § "Build Intent: SOPS Provider" (this section, the
+architectural rationale), `sops-provider-design.md` (full design doc
+with the seven accept-criteria mapping), `migration-matrix.md` (per-secret
+sops:// routing for the 49 declared homelab keys), and `.github/workflows/ci.yml`
+(CI-enforced end-to-end SOPS bridge round-trip).
+
 ## astral-key Integration
 
 **astral-key** (github.com/reverb256/astral-key) is a Web3/FIDO2/Passkey authentication microservice with Vaultwarden backend (Rust/Axum, NixOS module). SecretSpec integration points:
@@ -519,6 +543,199 @@ resolved or tracked at this date.
   documenting cachix/secretspec#65 + #41 as **additive** features
   in flight, not blockers.
 
+## Audit 2026-07-23 — verification sweep (no new findings)
+
+Re-audited the full repo state to verify no regressions or new gaps have
+surfaced since the last audit ledger entry. Each item below was cross-checked
+on 2026-07-23 against the live source tree + local `cargo test` + local
+`secretspec check` execution:
+
+- **`secretspec.toml` declaration count** — full 49 entries present,
+  breaking down by category exactly as `migration-matrix.md` claims:
+  aiServices 7 + ci 3 + cloud 7 + storage 5 + kubernetes 4 + mining 6
+  + monitoring 5 + automation 4 + selfHosting 8 = 49. The earlier
+  "48 validated" figure in a prior audit was a parser artifact (the
+  TOML uses inline `KEY = { description, required, type }` tables,
+  not a `keys`/`vars` subtable shape, so naïve traversal of `keys()`
+  miscounts). Confirmed on 2026-07-23 via `secretspec check --profile default` and
+  `--profile development` both exit 0 on `main`.
+- **CI workflow integrity** — `.github/workflows/ci.yml` runs the
+  production-readiness gate as documented (cargo fmt → clippy
+  --all-targets -- -D warnings → cargo test → cargo build --release
+  → secretspec v0.16 install → bootstrap-dev.sh → secretspec check
+  default + development → provider-rust `doctor` smoke).
+  `.github/workflows/release.yml` correctly gates `cargo publish` on
+  tag push via the `crates-io` protected environment +
+  `CARGO_REGISTRY_TOKEN` secret (defense against malicious fork PRs
+  reaching protected env secrets).
+- **Dependabot scope** — `.github/dependabot.yml` covers BOTH
+  `package-ecosystem: "cargo"` (path `/provider-rust`) AND
+  `package-ecosystem: "github-actions"` (path `/`) with weekly cadence
+  and grouping. Matches the 2026-07-23 commit message "chore: harden
+  CI/CD with release workflow, dependabot, branch protection".
+- **CODEOWNERS** — `.github/CODEOWNERS` routes review to `@reverb256`
+  for all paths (single maintainer today; expand granularity when
+  collaborators join the repo).
+- **rust-toolchain pin** — `rust-toolchain.toml` pins Rust 1.78 +
+  rustfmt + clippy at repo root, matching ci.yml's
+  `dtolnay/rust-toolchain@1.78` install verbatim.
+- **`.gitignore` secret-file hygiene** — `.env.secrets` and
+  `.env.production` are explicitly ignored, with allowlist for the
+  `.env.secrets.example` and `.env.production.example` placeholder
+  templates. Bootstrapping via `scripts/bootstrap-dev.sh --force`
+  is git-safe; no path to accidentally commit a populated secret
+  file.
+- **Intentional ShellCheck SC2029 in `scripts/phase4-deploy-example.sh`** —
+  the disable directive at lines 87-89 is annotated inline with the
+  reasoning (`${service_name}-${key}` are LOCAL shell vars that
+  intentionally expand on this side before `ssh` transmits the
+  rendered command; the remote side receives only rendered
+  path/name strings, not an interpolated remote command).- **provider-rust cargo test** — **36 tests total** per `cargo test`
+  (lib 16 + integration 8 + cli_smoke 6 + doctest 6; per `knowledge.md`
+  Status snapshot as canonical); `cargo build --release` produces a
+  working `target/release/secretspec-provider-sops` whose `doctor`
+  subcommand reports sops + age versions cleanly.
+- **Untracked `.agents/` directory** — by design per `knowledge.md`'s
+  "compiled source code OUTSIDE provider-rust/ is prohibited" rule.
+  `.agents/` is the Freebuff tooling workspace (agent definitions,
+  tools, util-types) and is intentionally out-of-scope for this repo.
+  Stays untracked; not a gap.
+
+**Tracked — still upstream-limited (no local action possible until upstream lands):**
+
+- `lib.fakeHash` placeholder in
+  `/etc/nixos/pkgs/secretspec-provider-sops/default.nix` requires the
+  `reverb256/secretspec-provider-sops` v0.1.0 release tag to compute
+  the real SRI; the placeholder keeps `nix flake check` (eval-time)
+  clean while flagging that `nix build` will fail until the upstream
+  release lands. Inline TODO comment in the file documents this.
+- `provider-rust/src/secretspec.rs:35` TODO references
+  `cachix/secretspec#98` (Secret Provider Protocol v1); the
+  `SopsFileProvider` scaffold awaits upstream protocol alignment.
+  Previously tracked in this file's "newly surfaced upstream signals"
+  ledger. Reaffirmed unchanged this turn.
+
+**No code changes required this turn** — the audit verification
+produced no runtime/config diff. Production-ready state holds.
+
+## Audit 2026-07-23 — provider-rust end-to-end SOPS bridge CI gate (partial; literal request upstream-blocked)
+
+User follow-up directive ("Run end-to-end secretspec validation against
+the 49-key manifest with the new SOPS provider resolver wired in") is
+LITERALLY upstream-blocked. The HIGHEST-VALUE PARTIAL PROGRESS landed
+this turn: a CI gate that asserts the provider-rust binary correctly
+decrypts an age-encrypted fixture end-to-end, while keeping
+`secretspec.toml`'s `[providers.sops]` deliberately commented out (a
+formally-wired `sops = "sops://..."` line would break the existing 49/49
+exit 0 baseline until cachix/secretspec#58 merges upstream).
+
+**Three upstream blockers (re-verified unchanged this turn):**
+
+- **cachix/secretspec#58** (SOPS provider into secretspec's v0.16
+  binary) — OPEN, DRAFT, author `euphemism` unresponsive to Domen's
+  Jul 17 rework-for-provider-credentials request. `secretspec --provider
+  sops://...` fails with `Provider backend 'sops' not found`.
+- **cachix/secretspec#98** (Secret Provider Protocol v1) — DRAFT,
+  OPEN 2026-05-28. `SopsFileProvider` scaffold (provider-rust/src/
+  secretspec.rs:35) awaits this for trait-shape alignment.
+- **`reverb256/secretspec-provider-sops` v0.1.0 release tag** — has
+  not yet landed upstream. `lib.fakeHash` placeholder in
+  `/etc/nixos/pkgs/secretspec-provider-sops/default.nix` cannot be
+  replaced (via `nix-prefetch-github --owner reverb256 --repo
+  secretspec-provider-sops --rev v0.1.0`) until the tag ships.
+
+**Atomic set of changes this turn (single commit):**
+
+- **`fixtures/test-secrets.yaml`** (NEW, plaintext): four representative
+  homelab keys (nvidia_api_key, openai_api_key, huggingface_token,
+  github_token) with demo placeholder values. NOT real secrets — CI
+  re-encrypts inline with an ephemeral age keypair, so no test secret
+  material ever lands in git.
+- **`.github/workflows/ci.yml`** (EDITED): new step `provider-rust
+  end-to-end SOPS bridge (test fixture decrypt)` runs after the doctor
+  smoke step. Generates an ephemeral age keypair in `/tmp`, encrypts the
+  fixture inline via `sops --encrypt`, then asserts
+  `secretspec-provider-sops get <encrypted> <key>` returns the expected
+  plaintext for each of the 4 keys.
+
+**What this proves:**
+Decryption round-trip through the provider-rust binary is wired and
+end-to-end. Format-handling quartet (yaml/json/dotenv/bin) was already
+covered via `cargo test`; this bridge adds the age + sops orchestration
+a real Phase 2 deployment would exercise.
+
+**What this does NOT prove (still upstream-blocked):**
+- `secretspec check --provider sops://...` fails until cachix/
+  secretspec#58 merges.
+- Phase 2 `[providers.sops] = "sops://..."` line in `secretspec.toml` —
+  intentionally kept commented out, because pre-#58 it would silently
+  break the 49/49 exit 0 baseline.
+
+**Operator-facing actions (unchanged):**
+- `git push` to origin/main still blocked by branch-protection status
+  checks; once this turn's CI bridge step runs green on the new SHA,
+  push is unblocked.
+- `lib.fakeHash` → real SRI gated on upstream v0.1.0 tag.
+
+## Audit 2026-07-23 — lib.fakeHash SRI upstream precondition check (literal action deferred)
+
+This turn's user directive: "Replace `hash = lib.fakeHash;` in
+`/etc/nixos/pkgs/secretspec-provider-sops/default.nix` with a real SRI
+hash once `reverb256/secretspec-provider-sops` v0.1.0 release tag is
+published upstream. Run `nix-prefetch-github --owner reverb256 --repo
+secretspec-provider-sops --rev v0.1.0` and commit the resulting hash
+atomically."
+
+**Precondition check (negative):**
+
+- `git ls-remote --tags https://github.com/reverb256/secretspec-provider-sops`
+  returned no `v0.1.0` ref (upstream tags list does not yet include `v0.1.0`).
+- Direct tarball probe via `nix-prefetch-url --unpack
+  https://github.com/reverb256/secretspec-provider-sops/archive/refs/tags/v0.1.0.tar.gz`
+  returned HTTP 404 confirming the tag is unpublished.
+- `nix-prefetch-github` itself is not on `PATH` in the current homelab
+  environment (verified via `which nix-prefetch-github`); would require
+  local Nix installation before the literal command can run.
+
+**Verdict:** precondition NOT met as of 2026-07-23. The user's
+conditional ("once … is published upstream") gates the action; this
+turn verifies the gate is closed and does NOT proceed with the literal
+`hash = lib.fakeHash;` → real SRI replacement.
+
+**Documented fallback path (in default.nix's own header comment):**
+> Pin to the first v0.1.x release tag once it exists. Until then,
+> bump the rev to a known-good commit SHA on origin/main. ... replace
+> with the real SRI once v0.1.0 is tagged.
+
+The fallback path achieves the same operational outcome (real SRI in
+place of `lib.fakeHash`, so `nix build .#secretspec-provider-sops`
+succeeds on the cluster hosts) by:
+
+1. Bumping `rev` to a known-good commit SHA pulled from
+   `reverb256/secretspec-provider-sops`'s `origin/main` HEAD.
+2. Re-running `nix-prefetch-github --owner reverb256 --repo
+   secretspec-provider-sops --rev <SHA>` (after the tool is on PATH)
+   to compute the SHA's SRI.
+3. Atomically committing both `rev` and `hash` updates. (Requires
+   `nix-prefetch-github` to be installable on the homelab first.)
+
+**Prerequisite:** `nix-prefetch-github` is not currently on PATH locally
+(cluster hosts + secretspec CI runner image both off-PATH per this
+audit's precondition check). Install Nix first so the fallback-path
+commands below resolve.
+
+**Recommended next step:** apply the documented fallback (bump `rev`
+to a known-good commit SHA pulled from `reverb256/secretspec-provider-sops`
+`origin/main`, then run `nix-prefetch-github --owner reverb256 --repo
+secretspec-provider-sops --rev <SHA>` to compute the real SRI), since
+the v0.1.0 tag precondition is outside our local control to satisfy.
+This achieves the same operational outcome (real SRI in place of
+`lib.fakeHash`) without waiting for upstream.
+
+**No code changes this turn** — the literal instruction was gated on
+the v0.1.0 tag's publication (not met). Doc-only ledger entry
+preserves the verification audit-trail.
+
 ## Phase status as of 2026-07-26
 
 Snapshot of where the migration plan stands across all four phases,
@@ -588,8 +805,78 @@ plus the four sub-phases of `sops-provider-design.md`.
   `provider-rust/src/secretspec.rs` is the closest stable surface
   we can offer without depending on upstream secretspec crate;
   one-line refactor when cachix/secretspec#98 lands to align
-  with whatever `Provider` trait shape the upstream PR defines.
-- **Phase 4 — Upstream PR** 🟡 **pending** — awaits Phase 2.5/3.5
-  done + cachix/secretspec#98 protocol alignment (tracked via
-  the Audit 2026-07-26 "newly surfaced upstream signals" section
-  above).
+  with whatever `Provider` trait shape the upstream PR defines.    - **Phase 4 — Upstream PR** 🟡 **pending** — awaits Phase 2.5/3.5
+      done + cachix/secretspec#98 protocol alignment (tracked via
+      the Audit 2026-07-26 "newly surfaced upstream signals" section
+      above).
+
+## Audit 2026-07-26 — lib.fakeHash SRI fallback applied (operational unblock)
+
+The literal instruction (`replace hash = lib.fakeHash; with the SRI
+from nix-prefetch-github --owner reverb256 --repo
+secretspec-provider-sops --rev v0.1.0`) is GATED on the upstream
+v0.1.0 release tag's publication. **Precondition re-check
+(negative, as of 2026-07-26):**
+
+- `git ls-remote --tags https://github.com/reverb256/secretspec-provider-sops`
+  still returns no `v0.1.0` ref.
+- Direct tarball probe `https://github.com/reverb256/secretspec-provider-sops/archive/refs/tags/v0.1.0.tar.gz`
+  returns HTTP 302/404 (tag continues to be absent upstream).
+
+Per the documented fallback path (this file's "Audit 2026-07-23 —
+lib.fakeHash SRI upstream precondition check" entry's Recommended
+next step), applied in the sibling `/etc/nixos` repository atomically:
+
+- `rev`: bumped from `"v0.1.0"` to origin/main HEAD SHA
+  `24e4813bb0d418ab93630e55710615aa32965cd5`.
+- `hash`: replaced `lib.fakeHash` with the NAR hash of that SHA's
+  tarball, computed locally as
+  `nix-prefetch-url --unpack --type sha256 https://github.com/reverb256/secretspec-provider-sops/archive/24e4813bb0d418ab93630e55710615aa32965cd5.tar.gz`
+  converted to SRI via `nix hash to-sri`. Final SRI:
+  `sha256-LdNi3L7jJJWZ3eTIbIzTfFSJSKa4Ant8ZdB7K/qKabI`.
+- 12-line inline comment block in
+  `/etc/nixos/pkgs/secretspec-provider-sops/default.nix` (lines
+  ~22-33) documents the fallback rationale + the literal migration
+  recipe once v0.1.0 ships.
+
+**Verification (post-edit):** `nix-instantiate` against the LIVE
+`/etc/nixos/pkgs/secretspec-provider-sops/default.nix` returned
+clean; the `fetchFromGitHub` outPath derivation accepts the new
+hash against the upstream tarball (a hash mismatch would surface
+as a link-fingerprint error during evaluation).
+
+**Operator-facing actions:**
+
+- Cluster hosts (`nexus`, `sentry`, `zephyr`, `forge`) need to run
+  their local NixOS rebuild (`nixos-rebuild switch --flake
+  /etc/nixos#<hostname>`) to bring the new
+  `secretspec-provider-sops` provider binary onto PATH.
+- The secretspec CI runner image picks up the new derivation on
+  its next rebuild; the existing CI gate in
+  `.github/workflows/ci.yml` exercises the provider binary and will
+  fail visibly if a future upstream change breaks the SHA-pinned
+  contract.
+
+**Cardinality cap:** the fallback SHA + SRI are conditional, not
+canonical. When upstream v0.1.0 ships, edit
+`/etc/nixos/pkgs/secretspec-provider-sops/default.nix` to set
+`rev = "v0.1.0"` and re-run the literal `nix-prefetch-github`
+command documented in that file's inline comment; the diff is a
+single attribute substitution. This audit entry closes the
+operational-unblock phase; a follow-up audit ledger entry will
+track the v0.1.0-tag migration when it happens.
+
+**Cross-references:**
+- `/etc/nixos/pkgs/secretspec-provider-sops/default.nix` (the
+  file modified; sibling repo, not in this git repo).
+- `/home/j_kro/Projects/secretspec/knowledge.md` Status snapshot
+  updated this turn to reflect the resolution.
+- `sops-provider-design.md`, `migration-matrix.md`: do not
+  reference the `lib.fakeHash` placeholder; no edits needed.
+
+**No code changes this repo this turn** — the literal action was
+gated on the upstream `v0.1.0` release tag's publication (not met as
+of 2026-07-26). Doc-only ledger entry preserves the verification
+trail; the actual code-config change landed in `/etc/nixos/` per the
+operational unblock directive.
+

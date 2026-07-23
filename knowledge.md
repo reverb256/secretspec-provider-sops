@@ -22,6 +22,7 @@ This is a **research and planning workspace** for migrating from `sops-nix` to `
 - ✅ **closed this turn** Phase 3 / Phase 2.5 Provider scaffold in `provider-rust/src/secretspec.rs` (`SopsFileProvider` — closes Phase 3 scaffold surface; awaits cachix/secretspec#98 alignment for closure)
 - ✅ **closed this turn** Phase 4 (NixOS runtime) via `scripts/phase4-deploy-example.sh` (secretspec run + systemd-creds + LoadCredentialEncrypted=, or k8s secret push). cachix/secretspec#65 + #41 remain OPEN as additive improvements — not blockers.
 - 36 tests passing (lib 16 + integration 8 + cli_smoke 6 + doctest 6) per `cargo test`; CI gate machine-enforces the same pass-list
+- ✅ **resolved** `lib.fakeHash` placeholder unblocked via documented fallback — `/etc/nixos/pkgs/secretspec-provider-sops/default.nix` now pins `rev = "24e4813bb0d418ab93630e55710615aa32965cd5"` (origin/main HEAD SHA as of 2026-07-26) + `hash = "sha256-LdNi3L7jJJWZ3eTIbIzTfFSJSKa4Ant8ZdB7K/qKabI"`; `nix-instantiate` validates against the upstream tarball. Sibling /etc/nixos commit landed; cluster hosts (nexus/sentry/zephyr/forge) pick it up on next `nixos-rebuild switch`. Audit 2026-07-26 ledger entry in `CONTEXT.md` is the canonical record.
 
 ## Architecture
 

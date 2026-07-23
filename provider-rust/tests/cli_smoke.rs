@@ -253,10 +253,8 @@ fn encrypt_fixture_inner(leaf: &str, plaintext: &str) -> (TempDir, PathBuf, Path
             let t = l.trim();
             if t.starts_with("age1") {
                 Some(t.to_string())
-            } else if let Some(idx) = t.find("age1") {
-                Some(t[idx..].trim().to_string())
             } else {
-                None
+                t.find("age1").map(|idx| t[idx..].trim().to_string())
             }
         })
         .expect("age1 pubkey from age-keygen stderr");
@@ -309,10 +307,8 @@ fn encrypt_bin_fixture(plaintext: &[u8]) -> (TempDir, PathBuf, PathBuf) {
             let t = l.trim();
             if t.starts_with("age1") {
                 Some(t.to_string())
-            } else if let Some(idx) = t.find("age1") {
-                Some(t[idx..].trim().to_string())
             } else {
-                None
+                t.find("age1").map(|idx| t[idx..].trim().to_string())
             }
         })
         .expect("age1 pubkey from age-keygen stderr");
