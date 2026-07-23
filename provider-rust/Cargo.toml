@@ -11,7 +11,7 @@ publish = true
 
 [dependencies]
 # Async runtime — needed for `tokio::process::Command` + `#[tokio::main]`
-tokio = { version = "1.37", features = ["rt-multi-thread", "process", "macros"] }
+tokio = { version = "1.37", features = ["rt-multi-thread", "process", "macros", "io-util", "io-std"] }
 # Serialization for YAML / JSON parsing of decrypted SOPS output
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

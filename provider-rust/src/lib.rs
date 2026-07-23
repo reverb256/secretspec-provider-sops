@@ -10,6 +10,7 @@
 //! upstream churn (v0.12 nixpkgs pin, v0.16 upstream stable).
 
 pub mod provider;
+pub mod protocol;
 
 
 pub use provider::{parse_dotenv_line, strip_inline_comment, DoctorReport, SopsProvider};
