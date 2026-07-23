@@ -52,7 +52,9 @@ jobs:
 
       - name: Install sops / age / age-keygen binaries
         run: |
-          nix profile install nixpkgs#sops nixpkgs#age nixpkgs#age-keygen
+          # nixpkgs#age-keygen is no longer a top-level flake attribute; modern nixpkgs ships
+          # age-keygen as a sub-binary of nixpkgs#age (pkgs.age/bin/age-keygen). Installing pkgs.age is sufficient.
+          nix profile install nixpkgs#sops nixpkgs#age
           which sops age age-keygen
 
       - name: cargo fmt --check
