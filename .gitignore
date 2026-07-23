@@ -1,0 +1,19 @@
+# Hygiene only — no build config. See knowledge.md "Conventions" for why this
+# repo stays source-code-free.
+
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+target/
+*.tmp
+
+# Real secret files must never be committed. The dotenv provider URI points at
+# these files locally; `.env.secrets.example` and `.env.production.example`
+# (placeholder templates) ARE allowed. To allow-list a template, line-up
+# `!.env.secrets.example` below.
+.env.secrets
+.env.production
+!.env.secrets.example
+!.env.production.example
