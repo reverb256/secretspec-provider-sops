@@ -36,6 +36,9 @@ jobs:
 
       - name: Install Rust per rust-toolchain.toml
         uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.78.0
+          components: rustfmt, clippy
 
       - name: Rust Cache (Swatinem/rust-cache, keyed on provider-rust/Cargo.lock)
         uses: Swatinem/rust-cache@v2

@@ -36,6 +36,9 @@ jobs:
       # automatically — no separate `rustup component add` step needed.
       - name: Install Rust per rust-toolchain.toml
         uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.78.0
+          components: rustfmt, clippy
 
       # Cargo target cache keyed on provider-rust/Cargo.lock hashing —
       # ~70% faster rebuilds on subsequent pushes to the same ref.
