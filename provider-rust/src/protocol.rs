@@ -197,12 +197,10 @@ impl Response {
             },
         })
     }
+
     /// Construct a successful Hello (used by the dispatcher after handshake).
     pub fn hello() -> Response {
-        Response::Hello(Self::v1_helper())
-    }
-    fn v1_helper() -> HelloResponse {
-        HelloResponse::v1()
+        Response::Hello(HelloResponse::v1())
     }
 }
 
