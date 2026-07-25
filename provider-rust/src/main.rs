@@ -95,9 +95,12 @@ async fn search_yaml_files(base_dir: &str, key: &str, max_depth: u32) -> Option<
             continue;
         }
         if path.is_dir() {
-            if let Some(value) =
-                Box::pin(search_yaml_files(&path.to_string_lossy(), key, max_depth - 1))
-                    .await
+            if let Some(value) = Box::pin(search_yaml_files(
+                &path.to_string_lossy(),
+                key,
+                max_depth - 1,
+            ))
+            .await
             {
                 return Some(value);
             }
