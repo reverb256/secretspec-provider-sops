@@ -107,7 +107,7 @@ async fn search_yaml_files(base_dir: &str, key: &str, max_depth: u32) -> Option<
         } else if path
             .extension()
             .and_then(|e| e.to_str())
-            .map_or(false, |e| e == "yaml" || e == "yml")
+            .is_some_and(|e| e == "yaml" || e == "yml")
         {
             let provider = SopsProvider::new();
             if let Ok(value) = provider.get(&path.to_string_lossy(), key, None).await {
