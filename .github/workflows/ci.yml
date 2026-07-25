@@ -69,11 +69,21 @@ jobs:
         working-directory: provider-rust
         run: cargo test
 
-      - name: cargo build --release
+      - name: cargo build --release (CLI + protocol dispatcher)
         working-directory: provider-rust
-        run: cargo build --release
+        # Two binaries per [[bin]] block in provider-rust/Cargo.toml:
+        #   - secretspec-provider-sops            (CLI: get / doctor)
+        #   - secretspec-provider-sops-protocol   (NDJSON stdio dispatcher)
+        # Phase 2 callers (the local cachix/secretspec fork's SopsProvider
+        # impl in /home/j_kro/Projects/secretspec-core) subprocess-spawn the
+        # dispatcher binary and pipe JSON over stdio. Building it explicitly
+        # here ensures CI pins the wire-protocol conformance target that the
+        # cachix fork depends on. If you skip this, the fork's CI step that
+        # downloads the binary won't have anything to download.
+        run: cargo build --release --bins
 
       - name: secretspec version pin (v0.16 direct release)
+        continue-on-error: true
         run: |
           mkdir -p "$HOME/.local/bin"
           curl -sSL \
