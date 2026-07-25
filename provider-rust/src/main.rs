@@ -144,7 +144,11 @@ async fn handle_get(g: secretspec_provider_sops::protocol::SecretRequest) -> Res
         // so Path::new(base).join("") doesn't return bare base_dir.
         let rel_path = if parts[0].is_empty() { "." } else { parts[0] };
         let yaml_key = parts.get(1).copied().unwrap_or(key);
-        let base = if g.project.is_empty() { "." } else { &g.project };
+        let base = if g.project.is_empty() {
+            "."
+        } else {
+            &g.project
+        };
         let full_path = Path::new(base).join(rel_path);
         let file_str = full_path.to_string_lossy().to_string();
         match provider.get(&file_str, yaml_key, None).await {
