@@ -13,6 +13,7 @@
 //! (see `protocol::Response::error`).
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use secretspec_provider_sops::protocol::{
     error_kind, HelloResponse, ReflectResponse, Response, SecretSchema,
@@ -69,44 +70,117 @@ async fn dispatch(req: secretspec_provider_sops::protocol::Request) -> Response 
     }
 }
 
+/// Max directory depth for recursive yaml file search.
+/// Fine for the homelab (< 10² entries, local NVMe); if adding NFS-backed
+/// secret roots, wrap the directory scan in `spawn_blocking`.
+const SEARCH_MAX_DEPTH: u32 = 8;
+
+/// Helper: search all `.yaml` / `.yml` files under `base_dir` for `key`.
+/// Returns the first match. Recurses into subdirectories up to `max_depth`.
+/// Uses `std::fs::read_dir` (not tokio::fs) so the `fs` tokio feature is not
+/// required — directory enumeration is negligible compared to the sops
+/// subprocess decryption latency per file.
+async fn search_yaml_files(base_dir: &str, key: &str, max_depth: u32) -> Option<String> {
+    if max_depth == 0 {
+        return None;
+    }
+    let entries: Vec<_> = std::fs::read_dir(base_dir).ok()?.filter_map(|e| e.ok()).collect();
+    for entry in entries {
+        let path = entry.path();
+        // Skip symlinks to avoid following cycles into unexpected paths.
+        if path.is_symlink() {
+            continue;
+        }
+        if path.is_dir() {
+            if let Some(value) =
+                Box::pin(search_yaml_files(&path.to_string_lossy(), key, max_depth - 1)).await
+            {
+                return Some(value);
+            }
+        } else if path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map_or(false, |e| e == "yaml" || e == "yml")
+        {
+            let provider = SopsProvider::new();
+            if let Ok(value) = provider.get(&path.to_string_lossy(), key, None).await {
+                return Some(value);
+            }
+        }
+    }
+    None
+}
+
 async fn handle_get(g: secretspec_provider_sops::protocol::SecretRequest) -> Response {
     // Per spec section 5.1: missing keys return `value: null` (NOT error).
     //
-    // Phase 1.5 wiring: actually call `SopsProvider::get` against the
-    // file path that the host stashes in `g.project`. The host sends
-    // `project` carrying the SOPS file path (per cachix/secretspec#98's
-    // convention); we treat it as the encrypted file path. Any
-    // resolution error (file missing, key missing, sops binary
-    // unavailable) collapses to `value = None` per spec section 5.1.
+    // The host sends `project` (= the sops:// URI path) and `key`.
+    // Two resolution strategies:
+    //
+    // 1. If `key` contains a `#` or `/`, treat `key` as a relative
+    //    file-path indicator: the part before `#` is the file path
+    //    (resolved relative to `project`), the part after `#` is the
+    //    YAML/dotenv key within that file. For example:
+    //    project="/etc/nixos/secrets" key="ai/nvidia-api-key.yaml#nvidia_api_key"
+    //    → decrypt "/etc/nixos/secrets/ai/nvidia-api-key.yaml"
+    //    → extract key "nvidia_api_key"
+    //
+    // 2. If `key` is a flat name (no `/` or `#`), search every `.yaml`
+    //    / `.yml` file under `project` for the key (depth-limited).
+    //    This handles Convention-addressed secrets where the host only
+    //    knows the key name, not the file path.
+    //
+    // Any resolution error (file missing, key missing, sops binary
+    // unavailable) collapses to `value = None` per spec §5.1.
     // Audit hooks (Phase 3) can distinguish error kinds for telemetry;
     // wire-protocol observers just see a clean `value: null`.
     let provider = SopsProvider::new();
-    match provider.get(&g.project, &g.key, None).await {
-        Ok(value) => Response::Get(secretspec_provider_sops::protocol::GetResponse {
-            ok: true,
-            value: Some(value),
-        }),
-        Err(e) => {
-            // Spec §5.1 mandates `value: null` on the wire for any
-            // miss/error so the host sees a clean envelope. The `tracing::warn!`
-            // here records the real cause in the audit log (target
-            // `secretspec_provider_sops::audit`) so operators can distinguish
-            // a true key miss from a `sops`-binary-missing or decryption-failed
-            // event after the fact. Wire-protocol observers see `null`;
-            // audit observers see the cause.
-            tracing::warn!(
-                target: "secretspec_provider_sops::audit",
-                error = %e,
-                project = %g.project,
-                key = %g.key,
-                "resolve failed; returning null per spec §5.1"
-            );
-            Response::Get(secretspec_provider_sops::protocol::GetResponse {
+    let key = &g.key;
+
+    let get_response = if key.contains('#') || key.contains('/') {
+        // Strategy 1: key contains file-path hint (e.g. "ai/nvidia-api-key.yaml#nvidia_api_key")
+        let parts: Vec<&str> = key.splitn(2, '#').collect();
+        // Guard against empty rel_path (key starts with `#`): default to "."
+        // so Path::new(base).join("") doesn't return bare base_dir.
+        let rel_path = if parts[0].is_empty() { "." } else { parts[0] };
+        let yaml_key = parts.get(1).copied().unwrap_or(key);
+        let base = if g.project.is_empty() { "." } else { &g.project };
+        let full_path = Path::new(base).join(rel_path);
+        let file_str = full_path.to_string_lossy().to_string();
+        match provider.get(&file_str, yaml_key, None).await {
+            Ok(value) => Response::Get(secretspec_provider_sops::protocol::GetResponse {
+                ok: true,
+                value: Some(value),
+            }),
+            Err(e) => {
+                tracing::warn!(
+                    target: "secretspec_provider_sops::audit",
+                    error = %e,
+                    file = %file_str,
+                    key = %yaml_key,
+                    "resolve failed; returning null per spec §5.1"
+                );
+                Response::Get(secretspec_provider_sops::protocol::GetResponse {
+                    ok: true,
+                    value: None,
+                })
+            }
+        }
+    } else {
+        // Strategy 2: flat key name — search all yaml files
+        match search_yaml_files(&g.project, key, SEARCH_MAX_DEPTH).await {
+            Some(value) => Response::Get(secretspec_provider_sops::protocol::GetResponse {
+                ok: true,
+                value: Some(value),
+            }),
+            None => Response::Get(secretspec_provider_sops::protocol::GetResponse {
                 ok: true,
                 value: None,
-            })
+            }),
         }
-    }
+    };
+
+    get_response
 }
 
 async fn handle_set(_s: secretspec_provider_sops::protocol::SetRequest) -> Response {
