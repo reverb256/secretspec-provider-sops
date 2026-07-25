@@ -83,11 +83,13 @@ async fn extract_yaml_key_via_sops_round_trip() {
         .arg("-o")
         .arg(&age_keyfile)
         .output()
-        .expect("age-keygen executable lookup failed; install with `nix profile install nixpkgs#age`");
+        .expect(
+            "age-keygen executable lookup failed; install with `nix profile install nixpkgs#age`",
+        );
     assert!(age_out.status.success(), "age-keygen exited non-zero");
     let pubkey = String::from_utf8_lossy(&age_out.stderr)
         .lines()
-        .find_map(|l| parse_age_pubkey_line(l))
+        .find_map(parse_age_pubkey_line)
         .expect("no `age1…` public key found in age-keygen stderr");
 
     // Plaintext YAML.
@@ -105,16 +107,27 @@ async fn extract_yaml_key_via_sops_round_trip() {
 
     // Sanity: the file is now encrypted (contains SOPS markers).
     let encrypted_contents = std::fs::read_to_string(&secrets_yaml).unwrap();
-    assert!(encrypted_contents.contains("sops:") || encrypted_contents.contains("ENC["), "post-encrypt file should contain SOPS envelope markers");
+    assert!(
+        encrypted_contents.contains("sops:") || encrypted_contents.contains("ENC["),
+        "post-encrypt file should contain SOPS envelope markers"
+    );
 
     // Per-test provider: keys live in this TempDir, no global env mutate.
     let provider = SopsProvider::with_age_keyfile(&age_keyfile);
     let nvidia_value = provider
-        .get(secrets_yaml.to_str().unwrap(), "nvidia_api_key", Some("yaml"))
+        .get(
+            secrets_yaml.to_str().unwrap(),
+            "nvidia_api_key",
+            Some("yaml"),
+        )
         .await
         .expect("extract nvidia_api_key");
     let openai_value = provider
-        .get(secrets_yaml.to_str().unwrap(), "openai_org_id", Some("yaml"))
+        .get(
+            secrets_yaml.to_str().unwrap(),
+            "openai_org_id",
+            Some("yaml"),
+        )
         .await
         .expect("extract openai_org_id");
 
@@ -137,7 +150,7 @@ async fn extract_missing_yaml_key_returns_key_not_found() {
     assert!(age_out.status.success(), "age-keygen exited non-zero");
     let pubkey = String::from_utf8_lossy(&age_out.stderr)
         .lines()
-        .find_map(|l| parse_age_pubkey_line(l))
+        .find_map(parse_age_pubkey_line)
         .expect("no `age1…` public key found in age-keygen stderr");
 
     std::fs::write(&secrets_yaml, "real_key: present\n").expect("write plaintext");
@@ -156,8 +169,8 @@ async fn extract_missing_yaml_key_returns_key_not_found() {
         "sops --encrypt failed: stderr={}",
         String::from_utf8_lossy(&encrypt_out.stderr)
     );
-    let encrypted_contents = std::fs::read_to_string(&secrets_yaml)
-        .expect("read post-encrypt file");
+    let encrypted_contents =
+        std::fs::read_to_string(&secrets_yaml).expect("read post-encrypt file");
     assert!(
         encrypted_contents.contains("sops:") || encrypted_contents.contains("ENC["),
         "post-encrypt file should contain SOPS envelope markers"
@@ -166,7 +179,11 @@ async fn extract_missing_yaml_key_returns_key_not_found() {
     // Per-test provider: gives us thread-safety without global env mutate.
     let provider = SopsProvider::with_age_keyfile(&age_keyfile);
     let result = provider
-        .get(secrets_yaml.to_str().unwrap(), "not_a_real_key", Some("yaml"))
+        .get(
+            secrets_yaml.to_str().unwrap(),
+            "not_a_real_key",
+            Some("yaml"),
+        )
         .await;
 
     match result {
@@ -192,7 +209,7 @@ async fn extract_dotenv_key_via_sops_round_trip() {
     assert!(age_out.status.success(), "age-keygen exited non-zero");
     let pubkey = String::from_utf8_lossy(&age_out.stderr)
         .lines()
-        .find_map(|l| parse_age_pubkey_line(l))
+        .find_map(parse_age_pubkey_line)
         .expect("public key in stderr");
 
     // Plaintext dotenv. Uses `export` + quoted + comment forms so
@@ -225,11 +242,19 @@ NIX_PACKAGES_CACHE_TOKEN=replace-with-real-token
         .await
         .expect("extract N8N_API_KEY");
     let webhook_value = provider
-        .get(secrets_env.to_str().unwrap(), "N8N_WEBHOOK_SECRET", Some("dotenv"))
+        .get(
+            secrets_env.to_str().unwrap(),
+            "N8N_WEBHOOK_SECRET",
+            Some("dotenv"),
+        )
         .await
         .expect("extract N8N_WEBHOOK_SECRET");
     let cache_token = provider
-        .get(secrets_env.to_str().unwrap(), "NIX_PACKAGES_CACHE_TOKEN", Some("dotenv"))
+        .get(
+            secrets_env.to_str().unwrap(),
+            "NIX_PACKAGES_CACHE_TOKEN",
+            Some("dotenv"),
+        )
         .await
         .expect("extract NIX_PACKAGES_CACHE_TOKEN");
 

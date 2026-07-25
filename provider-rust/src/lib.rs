@@ -1,19 +1,40 @@
-//! `secretspec-provider-sops` — Phase 1: SOPS provider CLI shim.
+//! `secretspec-provider-sops` — SOPS provider for SecretSpec.
 //!
-//! Phase 1 wraps `sops --decrypt` with format-aware extraction. Phase 2
-//! implements the SecretSpec generic provider interface (consumed via
-//! JSON). Phase 3 candidates live behind feature flags.
+//! Phase 1 surface (live):
+//! - `SopsProvider::new()` / `with_age_keyfile(path)` — provider instances
+//! - `SopsProvider::get(...)` / `get_bytes(...)` — extract a single key
+//!   from a SOPS-encrypted file. Format inferred from extension; hints
+//!   accepted via `--format` flag or `format_hint` argument.
+//! - `SopsProvider::doctor()` — emit a `DoctorReport` JSON dump of the
+//!   local `sops` / `age` environment
+//! - `parse_dotenv_line` / `strip_inline_comment` — exposed because
+//!   tests need them; not part of the upstream v0.1 SecretSpec surface
+//!
+//! Phase 2 surface (added this turn, per Domen Kozar's accept-criteria):
+//! - `SopsUri` / `FieldSpec` (`uri` module) — provider-URI parser with
+//!   credential-leakage prevention. Sensitives render as `***` in
+//!   `Display` / `to_string`. Implements Domen's #2 ("no credential
+//!   leakage").
+//! - `CredentialsChain` / `CredentialValue` (`credentials` module) —
+//!   provider credentials chain. Resolves each `FieldSpec` URI through
+//!   a framework-supplied resolver callback; sensitive values are
+//!   masked in `Debug` / `Display`. Implements Domen's #1 ("provider
+//!   credentials pattern").
 //!
 //! Decoupling: the lib is `secretspec` framework-agnostic. SecretSpec
-//! consumes the resolved value through its generic provider interface;
-//! the crate does not depend on `secretspec = "0.x"` to avoid the
-//! upstream churn (v0.12 nixpkgs pin, v0.16 upstream stable).
+//! consumes the resolved value through its generic provider interface
+//! (cachix/secretspec#98 Secret Provider Protocol v1); the crate does
+//! not depend on `secretspec = "0.x"` to avoid the upstream churn
+//! (v0.12 nixpkgs pin, v0.16 upstream stable).
 
+pub mod credentials;
+pub mod protocol;
 pub mod provider;
-pub mod secretspec;
+pub mod uri;
 
-pub use provider::{DoctorReport, SopsProvider, parse_dotenv_line, strip_inline_comment};
-pub use secretspec::SopsFileProvider;
+pub use credentials::{CredentialValue, CredentialsChain, CredentialsError, ResolverFn};
+pub use provider::{parse_dotenv_line, strip_inline_comment, DoctorReport, SopsProvider};
+pub use uri::{FieldSpec, SopsUri, UriError};
 
 use std::path::Path;
 use thiserror::Error;
@@ -38,9 +59,10 @@ pub enum SopsError {
     Io(#[from] std::io::Error),
 }
 
-/// Resolve a single key from a SOPS-encrypted file. Used by `main.rs`
-/// and by integration tests; not part of the v0.1.0 SecretSpec
-/// integration surface (Phase 2 wraps this).
+/// Resolve a single key from a SOPS-encrypted file. Used by the
+/// protocol binary (`src/main.rs`) and by integration tests; not part
+/// of the v0.1.0 SecretSpec integration surface (Phase 2 wraps this
+/// via the cachix/secretspec#98 protocol).
 pub async fn resolve_key(
     file: &str,
     key: &str,
@@ -50,29 +72,14 @@ pub async fn resolve_key(
     provider.get(file, key, format_hint).await
 }
 
-/// Resolve a secret value as raw bytes (Phase 2 surface; binary
-/// counterpart to `resolve_key`). For text formats, returns the
-/// decrypted UTF-8 bytes; for `bin`, returns the raw decrypted
-/// bytes with no UTF-8 coercion.
+/// Resolve a secret value as raw bytes (binary counterpart to
+/// `resolve_key`). For text formats, returns UTF-8 bytes; for `bin`,
+/// raw plaintext bytes with no UTF-8 coercion.
 ///
 /// # Examples
 ///
-/// `resolve_bytes` is the byte-returning parallel of `resolve_key`.
-/// Compile-only (`no_run`) because the example requires a real
-/// `sops` binary and a real `SOPS_AGE_KEY_FILE`.
-///
-/// ```
-/// # // requires real sops binary + SOPS_AGE_KEY_FILE; `no_run`
-/// # // so the doctest compiles but does not execute.
-/// use secretspec_provider_sops::{resolve_bytes, SopsError};
-/// # async fn example() -> Result<(), SopsError> {
-/// // Text path: returns UTF-8 bytes for the resolved key.
-/// let _ = resolve_bytes("secrets.yaml", "nvidia_api_key", None).await?;
-/// // Bin path: returns raw plaintext bytes; the `key` arg is ignored.
-/// let _ = resolve_bytes("secrets.bin", "_unused_for_bin", Some("bin")).await?;
-/// # Ok(())
-/// # }
-/// ```
+/// See the full doctest in `provider.rs::SopsProvider::get_bytes` —
+/// the surface here mirrors it.
 pub async fn resolve_bytes(
     file: &str,
     key: &str,
@@ -83,44 +90,20 @@ pub async fn resolve_bytes(
 }
 
 /// Best-effort path inference (kept at the lib level for reuse by tests
-/// and the binary).
-///
-/// Returns a normalized format name so that the `SopsProvider::get`
-/// match arms can switch on a small closed set:
-///
-/// - `.yaml` / `.yml` → `"yaml"`  (yml normalized to yaml)
-/// - `.json`         → `"json"`
-/// - `.env` (the dotfile basename itself, no extension) and
-///   `.env.local` / `.env.production` (dotfile-prefixed basenames)
-///                   → `"dotenv"`
-/// - `*.env`         → `"dotenv"`  (env extension normalized)
-/// - other exts      → returned lowercase (e.g. `"bin"`) so `get()`
-///                     emits `UnsupportedFormat { format: "bin" }`
-/// - `None` (no ext, not a known dotfile basename) → `None`
+/// and the binary). Returns the normalized format name; see
+/// `infer_format_from_path`.
 ///
 /// # Examples
 ///
 /// ```
 /// use secretspec_provider_sops::infer_format_from_path;
 ///
-/// // YAML (yml normalized to yaml)
 /// assert_eq!(infer_format_from_path("secrets.yaml"), Some("yaml".to_string()));
 /// assert_eq!(infer_format_from_path("secrets.yml"), Some("yaml".to_string()));
-///
-/// // JSON
 /// assert_eq!(infer_format_from_path("data.json"), Some("json".to_string()));
-///
-/// // dotenv dotfiles: `.env` (no ext) and `.env.<suffix>` (unhelpful ext)
 /// assert_eq!(infer_format_from_path(".env"), Some("dotenv".to_string()));
-/// assert_eq!(infer_format_from_path("config.env"), Some("dotenv".to_string()));
-/// assert_eq!(infer_format_from_path(".env.production"), Some("dotenv".to_string()));
 /// assert_eq!(infer_format_from_path(".env.local"), Some("dotenv".to_string()));
-///
-/// // Unknown ext is surfaced verbatim lowercase so the caller can emit
-/// // a precise `UnsupportedFormat { format: "bin" }` error.
 /// assert_eq!(infer_format_from_path("data.bin"), Some("bin".to_string()));
-///
-/// // No extension, not a known dotfile basename — `None` (caller errors).
 /// assert_eq!(infer_format_from_path("no-ext"), None);
 /// ```
 pub fn infer_format_from_path(file: &str) -> Option<String> {

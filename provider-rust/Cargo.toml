@@ -11,7 +11,7 @@ publish = true
 
 [dependencies]
 # Async runtime — needed for `tokio::process::Command` + `#[tokio::main]`
-tokio = { version = "1.37", features = ["rt-multi-thread", "process", "macros"] }
+tokio = { version = "1.37", features = ["rt-multi-thread", "process", "macros", "io-util", "io-std"] }
 # Serialization for YAML / JSON parsing of decrypted SOPS output
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -19,16 +19,31 @@ serde_json = "1"
 # here for Phase 1 because the surface (YAML read/write of decrypted SOPS
 # output) is small and stable. Phase 2 should migrate to `serde_yml`.
 serde_yaml = "0.9"
-# CLI parsing
-clap = { version = "4.5", features = ["derive"] }
+# CLI surface — std::env::args → clap derive for get/doctor/--help subcommands
+clap = { version = "4", features = ["derive"] }
 # Error handling
 thiserror = "1"
 anyhow = "1"
 # Audit logging — the framework hooks here in Phase 3, for now it's free
 tracing = "0.1"
 
+# Two bin targets in one crate:
+# - `secretspec-provider-sops` (this CLI tool — clap get/doctor/--help)
+#   is the user-facing binary; see src/cli.rs.
+# - `secretspec-provider-sops-protocol` (long-running NDJSON provider)
+#   is the cachix/secretspec#98 wire-protocol dispatcher; see src/main.rs.
+#
+# The two-bins split keeps cli_smoke's expectation (`get`/`doctor`/`--help`
+# subcommands on the user-facing binary) AND protocol_integration's
+# expectation (NDJSON-in/out on the protocol binary) co-existing without
+# mode-detection logic in main.rs.
+
 [[bin]]
 name = "secretspec-provider-sops"
+path = "src/cli.rs"
+
+[[bin]]
+name = "secretspec-provider-sops-protocol"
 path = "src/main.rs"
 
 [lib]
