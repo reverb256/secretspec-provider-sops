@@ -48,7 +48,7 @@ jobs:
           workspaces: provider-rust -> target
 
       - name: Install sops / age / age-keygen (via Nix)
-        uses: cachix/install-nix-action@v27
+        uses: cachix/install-nix-action@v31
 
       - name: Install sops / age / age-keygen binaries
         run: |
