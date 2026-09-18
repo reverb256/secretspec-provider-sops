@@ -22,7 +22,7 @@ serde_yaml = "0.9"
 # CLI surface — std::env::args → clap derive for get/doctor/--help subcommands
 clap = { version = "4", features = ["derive"] }
 # Error handling
-thiserror = "1"
+thiserror = "2"
 anyhow = "1"
 # Audit logging — the framework hooks here in Phase 3, for now it's free
 tracing = "0.1"
