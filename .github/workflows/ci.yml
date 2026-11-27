@@ -82,8 +82,10 @@ jobs:
         # downloads the binary won't have anything to download.
         run: cargo build --release --bins
 
+      # Required parts of the production-readiness gate: download, bootstrap
+      # and every profile check must fail the job when they fail (no
+      # continue-on-error on the gate's own validation steps).
       - name: secretspec version pin (v0.16 direct release)
-        continue-on-error: true
         run: |
           mkdir -p "$HOME/.local/bin"
           curl -sSL \
@@ -93,21 +95,17 @@ jobs:
           "$HOME/.local/bin/secretspec" --version
 
       - name: bootstrap-dev.sh (populate .env.secrets from template)
-        continue-on-error: true
         run: ./scripts/bootstrap-dev.sh --force
 
       # secretspec profile gate: coupled to .env.secrets populated by bootstrap-dev.sh above;
       # validates default → development → production inheritance chain end-to-end.
       - name: secretspec check --profile default
-        continue-on-error: true
         run: '"$HOME/.local/bin/secretspec" check --profile default -f ./secretspec.toml'
 
       - name: secretspec check --profile development
-        continue-on-error: true
         run: '"$HOME/.local/bin/secretspec" check --profile development -f ./secretspec.toml'
 
       - name: secretspec check --profile production
-        continue-on-error: true
         run: '"$HOME/.local/bin/secretspec" check --profile production -f ./secretspec.toml'
 
       - name: provider-rust binary smoke (doctor)
